@@ -52,12 +52,18 @@ const GATE_CODES = ["PHASE_BLOCKED", "ONBOARDING_INCOMPLETE", "READINESS_UNVERIF
 
 
 /**
- * Age of the last refresh that actually wrote to the channel.
+ * Age of the last refresh that actually wrote THIS half of ARI to the channel.
  *
- * A run that skipped both writes because nothing had moved cost the owner nothing, so it must not
- * lock the property out of the next real delta for five minutes.
+ * A run that skipped its writes because nothing had moved cost the owner nothing, so it must not
+ * lock the property out of the next real delta. Just as important: a price push must never park a
+ * block, and a block must never park a price change — they are different channel calls, and
+ * treating them as one is what made nearly every operator edit sit in the queue.
  */
-async function lastRealPushAgeMs(supabase: any, propertyId: string): Promise<number> {
+async function lastRealPushAgeMs(
+  supabase: any,
+  propertyId: string,
+  scope: RuDeltaScope,
+): Promise<number> {
   const since = new Date(Date.now() - RU_ARI_DELTA_DEBOUNCE_MS).toISOString();
   const { data } = await supabase
     .from("ru_sync_runs")
@@ -66,13 +72,31 @@ async function lastRealPushAgeMs(supabase: any, propertyId: string): Promise<num
     .eq("action", "refresh_ari")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(5);
-  for (const row of (data ?? []) as { created_at: string; details?: { skipped?: boolean } | null }[]) {
-    if (row.details?.skipped === true) continue;
+    .limit(10);
+  type Run = {
+    created_at: string;
+    details?: {
+      skipped?: boolean;
+      trigger?: string | null;
+      skipped_avb?: number | null;
+      skipped_prices?: number | null;
+      total_targets?: number | null;
+    } | null;
+  };
+  for (const row of (data ?? []) as Run[]) {
+    const d = row.details ?? {};
+    if (d.skipped === true) continue;
+    const ranScope = ruDeltaScopeForTrigger(d.trigger ?? null);
+    // Only a run that carried this half can hold this half back.
+    if (scope !== "both" && ranScope !== "both" && ranScope !== scope) continue;
+    const targets = Number(d.total_targets ?? 0) || 0;
+    if (scope === "availability" && targets > 0 && Number(d.skipped_avb ?? 0) >= targets) continue;
+    if (scope === "rates" && targets > 0 && Number(d.skipped_prices ?? 0) >= targets) continue;
     return Date.now() - Date.parse(row.created_at);
   }
   return Number.MAX_SAFE_INTEGER;
 }
+
 
 /**
  * A parked acceptance needs the reservation's own nights to stay open until it lands. An
