@@ -15,6 +15,9 @@ import {
   RU_MIN_BOOKABLE_WINDOW,
 } from "./ruContentQuality.ts";
 
+/** Longest minimum stay every channel accepts. A longer value is refused at connect time. */
+export const RU_MAX_MIN_STAY = 28;
+
 export type RuCheckGroup =
   | "Content"
   | "Rooms & beds"
@@ -104,6 +107,9 @@ export interface RuUnitValidation {
   images_meeting_cert_size?: number;
   images_measured_count?: number;
   images_meet_cert_size?: boolean;
+  /** Photos the channel-style probe could not fetch at all. */
+  images_rejected_count?: number;
+  image_issues?: Array<{ url?: string; reason?: string }>;
   smallest_image_width?: number | null;
   smallest_image_height?: number | null;
   bedroom_blocks?: number;
