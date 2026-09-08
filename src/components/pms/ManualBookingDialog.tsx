@@ -518,7 +518,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
      fall back to the rate plan / room type default (e.g. R1 000) even when the
      engine holds a season or stay-shape price. `quote_stay` is the single
      source of truth for the accommodation total, exactly as checkout uses it. */
-  const [serverQuote, setServerQuote] = useState<Map<string, { total: number; perNight: number }>>(new Map());
+  const [serverQuote, setServerQuote] = useState<Map<string, { total: number; perNight: number; policyId: string | null }>>(new Map());
   const [quoting, setQuoting] = useState(false);
 
   const quoteKey = useMemo(() => {
@@ -559,11 +559,16 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
           });
           if (cancelled) return;
           const rows = (!error && data?.success && Array.isArray(data.data?.rooms)) ? data.data.rooms : [];
-          const next = new Map<string, { total: number; perNight: number }>();
+          const next = new Map<string, { total: number; perNight: number; policyId: string | null }>();
           rows.forEach((r: any) => {
             const line = requested[Number(r.request_index) || 0];
             const total = Number(r.accommodation_total) || 0;
-            if (line && total > 0) next.set(line.key, { total, perNight: Number(r.per_night) || total / nights });
+            if (line && total > 0)
+              next.set(line.key, {
+                total,
+                perNight: Number(r.per_night) || total / nights,
+                policyId: r.policy_id ? String(r.policy_id) : null,
+              });
           });
           setServerQuote(next);
         } catch {
@@ -754,6 +759,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
      * and the booking keeps its original total. */
     const stampedPlanId = validLines.find(l => l.rate_plan_id)?.rate_plan_id || null;
     if (stampedPlanId) payload.rolos_rate_plan_id = stampedPlanId;
+
+    // A cancellation policy picked on the matched stay-shape rung/cell travels with the booking.
+    const shapePolicyId = validLines.map(l => serverQuote.get(l.key)?.policyId).find(Boolean) ?? null;
+    if (shapePolicyId) payload.cancellation_policy_id = shapePolicyId;
 
     /* Deliberate overbooking is recorded on the stay — the database guard reads
      * this field to allow the write, so the reason is the audit trail. */
