@@ -258,6 +258,9 @@ Deno.serve(async (req) => {
     }
 
     const ledger: RoutableRow[] = [];
+    /** Extras / F&B charge lists recognised on this run. */
+    const extrasSummaries: { filename: string; summary: ExtrasReportSummary }[] = [];
+
     const fileResults: Array<{
       id: string;
       filename: string;
