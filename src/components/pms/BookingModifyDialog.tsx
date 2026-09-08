@@ -846,8 +846,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
             </div>
           )}
 
-
+          <div className="space-y-1.5">
             <Label className="text-xs">Stay dates</Label>
+
             <StayRangePicker
               numberOfMonths={2}
               minDate={null}
