@@ -15,7 +15,8 @@ interface PropertyRow {
   longitude: number | null;
   description: string | null;
   images: unknown;
-  facilities: unknown;
+  amenities: unknown;
+  separate_kitchen: boolean | null;
   payment_providers: unknown;
   payment_mode: string | null;
 }
@@ -100,7 +101,7 @@ export function useChannelConnectFacts(propertyId: string | null | undefined) {
         supabase
           .from("properties")
           .select(
-            "name, property_type, bathrooms, max_guests, address, city, country, postal_code, latitude, longitude, description, images, facilities, payment_providers, payment_mode",
+            "name, property_type, bathrooms, max_guests, address, city, country, postal_code, latitude, longitude, description, images, amenities, separate_kitchen, payment_providers, payment_mode",
           )
           .eq("id", propertyId!)
           .maybeSingle(),
@@ -155,7 +156,7 @@ export function useChannelConnectFacts(propertyId: string | null | undefined) {
           : 0;
 
       const propPhotos = urls(prop?.images);
-      const propFacilities = textOf(prop?.facilities);
+      const propFacilities = `${textOf(prop?.amenities)}${prop?.separate_kitchen ? " kitchen" : ""}`;
 
       const build = (unit: UnitRow | null): ConnectFacts => {
         const photos = unit ? (urls(unit.images).length ? urls(unit.images) : propPhotos) : propPhotos;
