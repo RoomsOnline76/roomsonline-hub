@@ -139,6 +139,7 @@ export function BookingDetailsGrid({
   const [confirmState, setConfirmState] = useState<"idle" | "working" | "queued">("idle");
   const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [modifyStayOpen, setModifyStayOpen] = useState(false);
+  const [channelCheck, setChannelCheck] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
   const [account, setAccount] = useState({ extras: 0, payments: 0, deposits: 0 });
@@ -612,7 +613,48 @@ export function BookingDetailsGrid({
               </button>
             </div>
           )}
+          {/* A stay cancelled in the channel's own portal is not always announced to us. This asks
+              the channel directly and releases the dates here when it no longer holds the stay. */}
+          {booking.external_reservation_id && booking.status !== "cancelled" && (
+            <div className="pt-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 w-full text-[11px]"
+                disabled={channelCheck}
+                onClick={async () => {
+                  setChannelCheck(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke("ru-reservation-handler", {
+                      body: {
+                        verify_stale_holds: true,
+                        reservation_id: String(booking.external_reservation_id),
+                      },
+                    });
+                    if (error) throw error;
+                    const verdict = data?.verified?.details?.[0]?.verdict as string | undefined;
+                    if (verdict === "cancelled") {
+                      toast.success("The channel no longer holds this stay — cancelled and dates released");
+                      onSaved();
+                    } else if (verdict === "live") {
+                      toast.success("The channel still holds this stay");
+                    } else {
+                      toast.info("The channel could not answer right now — try again shortly");
+                    }
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Could not reach the channel");
+                  } finally {
+                    setChannelCheck(false);
+                  }
+                }}
+              >
+                {channelCheck ? "Checking…" : "Check with the Channel Manager"}
+              </Button>
+            </div>
+          )}
         </div>
+
 
 
         {/* A held channel request is not a reservation at the channel until it is accepted. */}
