@@ -16,8 +16,15 @@ import { ruDeltaScopeForTrigger } from './ruDeltaScope.ts';
 import { readInvokeErrorBody } from "./ruInvokeBody.ts";
 import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from "./ruSyncGate.ts";
 
-/** Minimum gap between two deltas for the same property. */
-export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
+/**
+ * Minimum gap between two deltas of the SAME half (prices or availability) for one property.
+ *
+ * This exists only to protect the channel's per-minute call window from a burst of clicks. It is
+ * deliberately short: an operator who blocks nights or re-prices a season expects the channel to
+ * have it moments later, not minutes later.
+ */
+export const RU_ARI_DELTA_DEBOUNCE_MS = 60 * 1000;
+
 
 export interface RuAriDeltaOutcome {
   queued: boolean;
