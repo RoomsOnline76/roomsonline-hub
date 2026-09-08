@@ -294,49 +294,57 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         company_details_sent: boolean | null;
       }>;
       const ownerIds = [...new Set(ruAccounts.map((a) => a.ru_owner_id).filter(Boolean))] as string[];
-      const { data: credRows } = ownerIds.length
-        ? await supabase.from("ru_api_credentials").select("ru_owner_id, access_key").in("ru_owner_id", ownerIds)
-        : { data: [] as { ru_owner_id: string; access_key: string | null }[] };
-      const ownersWithKeys = new Set(
-        (credRows ?? [])
-          .filter((c) => !!c.access_key)
-          .map((c) => String(c.ru_owner_id)),
-      );
-      const credsOf = (acc?: (typeof ruAccounts)[number]) => ({
-        ownerId: acc?.ru_owner_id ?? null,
-        // A sub-user id equal to the OwnerID is the same single account, not a second one.
-        subUserId:
-          acc?.ru_user_id && String(acc.ru_user_id) !== String(acc.ru_owner_id ?? "")
-            ? acc.ru_user_id
-            : null,
-        ownerEmail: acc?.owner_email ?? null,
 
-        keysCaptured: !!acc?.ru_api_access_key || (!!acc?.ru_owner_id && ownersWithKeys.has(String(acc.ru_owner_id))),
-        companyDetailsSent: acc?.company_details_sent === true,
-      });
-      const accountByProperty = new Map<
-        string,
-        { ownerId: string | null; subUserId: string | null; ownerEmail: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
-      >();
-      for (const p of allProps) {
-        const direct = ruAccounts.find((a) => a.property_id === p.id);
-        if (direct) {
-          accountByProperty.set(p.id, credsOf(direct));
-          continue;
+      /**
+       * The account each property actually pushes through is resolved by the backend —
+       * the same resolver push and onboarding use, including portfolio-sibling
+       * inheritance. Resolving it here in the browser missed inherited accounts and
+       * reported bound properties as unlinked and paused.
+       */
+      type ResolvedAccount = {
+        ru_owner_id: string | null;
+        ru_user_id: string | null;
+        owner_email: string | null;
+        keys_captured: boolean;
+        company_details_sent: boolean;
+        scope: AccountScope;
+        source_property_id: string | null;
+        portfolio_name: string | null;
+      };
+      const accountByProperty = new Map<string, AccountResolution>();
+      const emptyResolution: AccountResolution = {
+        ownerId: null,
+        subUserId: null,
+        ownerEmail: null,
+        keysCaptured: false,
+        companyDetailsSent: false,
+        scope: "none",
+        sourceName: null,
+      };
+      if (allProps.length) {
+        const { data: resolvedRes } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "resolve_owner_accounts", property_ids: allProps.map((p) => p.id) },
+        });
+        const map = (resolvedRes?.accounts ?? {}) as Record<string, ResolvedAccount>;
+        for (const p of allProps) {
+          const acc = map[p.id];
+          accountByProperty.set(
+            p.id,
+            acc
+              ? {
+                  ownerId: acc.ru_owner_id ?? null,
+                  subUserId: acc.ru_user_id ?? null,
+                  ownerEmail: acc.owner_email ?? null,
+                  keysCaptured: acc.keys_captured === true,
+                  companyDetailsSent: acc.company_details_sent === true,
+                  scope: acc.scope ?? "none",
+                  sourceName: acc.portfolio_name ?? null,
+                }
+              : emptyResolution,
+          );
         }
-        const portfolioId = (membersRes.data || []).find((m) => m.property_id === p.id)?.portfolio_id;
-        const portfolioMatch = portfolioId
-          ? ruAccounts.find((a) => a.portfolio_id === portfolioId)
-          : undefined;
-        if (portfolioMatch) {
-          accountByProperty.set(p.id, credsOf(portfolioMatch));
-          continue;
-        }
-        const emailMatch = p.owner_email
-          ? ruAccounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
-          : undefined;
-        accountByProperty.set(p.id, credsOf(emailMatch));
       }
+
 
       const draft = relevant.map((p) => {
         // Only records that carry a channel listing id have a channel footprint.
