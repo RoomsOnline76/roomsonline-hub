@@ -27,6 +27,7 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   paused: "Paused",
   archived: "Archived",
   pending: "Never pushed",
+  unlinked: "Not linked",
 };
 
 export function ChannelPropertyTable({
