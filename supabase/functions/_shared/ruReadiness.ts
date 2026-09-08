@@ -381,6 +381,19 @@ export function evaluateUnitChecks(
     }`,
     "Property → Images", false);
 
+  // Channels fetch every photo URL themselves and refuse the listing when one fails, so the
+  // reachability verdict belongs in the up-front photo list — not at the connect step.
+  const unreachable = Number(v.images_rejected_count ?? 0);
+  const unreachableReasons = (v.image_issues ?? [])
+    .map((i) => String(i?.reason ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  add("images_reachable", "Photos", "Photos can be downloaded", unreachable === 0,
+    `${unreachable} photo(s) could not be downloaded${
+      unreachableReasons.length > 0 ? ` (${unreachableReasons.join("; ")})` : ""
+    } — a channel fetches every file and rejects the listing when one fails. Re-upload them so they are publicly reachable`,
+    "Property → Images — re-upload the failing photos", false);
+
   add("has_main_image", "Photos", "Main photo flagged", v.has_main_image !== false,
     "No photo is marked as the main image", "Property → Images → set the first image");
 
