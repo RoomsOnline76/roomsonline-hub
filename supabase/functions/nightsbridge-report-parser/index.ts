@@ -582,7 +582,28 @@ Deno.serve(async (req) => {
       siblingDedupe.counts = split.droppedCounts;
     }
 
+    // No configured room count: the export names a unit on every line, so the
+    // distinct guest-room labels are a far better denominator than the single
+    // room the old fallback assumed (which printed occupancy over 100%).
+    if (!roomCountConfigured) {
+      const fromLedger = roomCountFromLedger(workingRows);
+      if (fromLedger > roomCount) {
+        const previous = roomCount;
+        roomCount = fromLedger;
+        await logRunEvent(
+          admin,
+          runId,
+          "room_count_corrected",
+          `No sellable-room count is set for this property. The export names ${fromLedger} guest rooms, ` +
+            `so occupancy uses ${fromLedger} rooms instead of ${previous} — confirm the room count in Report Settings.`,
+          { configured: null, derived_from_export: fromLedger, previous },
+          actorId,
+        );
+      }
+    }
+
     const aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+
 
     if (siblingDedupe.dropped.length > 0) {
       const ids = Object.keys(siblingDedupe.counts);
