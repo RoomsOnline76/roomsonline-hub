@@ -35,6 +35,8 @@ export const EMPTY_NB_PROFILE: NbProfile = {
   group_label: null,
   stly_from_prior_workbook: false,
   historical_from_current_ledger: false,
+  zero_revenue_unavailable_is_hold: false,
+
 };
 
 const stringList = (value: unknown): string[] => {
