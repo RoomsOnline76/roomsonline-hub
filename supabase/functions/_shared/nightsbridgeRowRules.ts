@@ -70,6 +70,7 @@ export function normaliseRules(
   keepPatterns: unknown,
   excludePatterns: unknown,
   dropZeroRevenue = true,
+  zeroRevenueUnavailableIsHold = false,
 ): RowRules {
   const clean = (value: unknown): string[] =>
     Array.isArray(value)
@@ -81,7 +82,9 @@ export function normaliseRules(
     keepPatterns: clean(keepPatterns),
     excludePatterns: clean(excludePatterns),
     dropZeroRevenue,
+    zeroRevenueUnavailableIsHold,
   };
+
 }
 
 /** Fields a pattern can be scoped to, e.g. `guest:MOI` or `room:Room 0`. */
