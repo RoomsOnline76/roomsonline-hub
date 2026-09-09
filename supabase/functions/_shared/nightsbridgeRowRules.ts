@@ -49,7 +49,9 @@ export const EMPTY_ROW_RULES: RowRules = {
   keepPatterns: [],
   excludePatterns: [],
   dropZeroRevenue: false,
+  zeroRevenueUnavailableIsHold: false,
 };
+
 
 
 export const ROW_CLASS_LABELS: Record<RowClass, string> = {
