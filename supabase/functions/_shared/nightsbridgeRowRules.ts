@@ -211,6 +211,22 @@ export function classifyRow(
     return { klass: "blocked_marker", matched: null };
   }
 
+  // Two combinations that only ever mean "nobody paid and nobody is arriving",
+  // both confirmed against the signed-off packs (Explorers Club, Ashbourne):
+  //   * a room flagged out of service that also earns nothing, and
+  //   * an owner's own stay at no charge.
+  // Revenue alone never decides and status alone never decides — it takes both,
+  // and a property keep-list (checked above) still overrides either.
+  if (rules.dropZeroRevenue && Number(row.revenue ?? 0) === 0) {
+    const status = String(row.status ?? "");
+    if (/(unavail|not available|block|maintenance|out of order|repair)/i.test(status)) {
+      return { klass: "blocked_zero_revenue", matched: null };
+    }
+    if (/^\s*owner('?s)?(\s+(use|stay))?\s*$/i.test(String(row.company ?? ""))) {
+      return { klass: "blocked_zero_revenue", matched: null };
+    }
+  }
+
   return { klass: "sellable", matched: null };
 }
 
