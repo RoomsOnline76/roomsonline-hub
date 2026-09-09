@@ -510,6 +510,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     let roomCount = settings?.room_count ?? 0;
+    const roomCountConfigured = roomCount > 0;
     if (!roomCount) {
       const { count } = await admin
         .from("rolos_rooms")
@@ -518,6 +519,7 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       roomCount = count && count > 0 ? count : 1;
     }
+
 
     // A room count captured as capacity days would divide occupancy by ~30.
     const roomCheck = sanitiseRoomCount(roomCount);
