@@ -20,6 +20,9 @@ export interface NbProfile {
   group_label: string | null;
   stly_from_prior_workbook: boolean;
   historical_from_current_ledger: boolean;
+  /** Zero-revenue rows on an unavailable room are holds at this property. */
+  zero_revenue_unavailable_is_hold: boolean;
+
 }
 
 export const EMPTY_NB_PROFILE: NbProfile = {
@@ -32,6 +35,8 @@ export const EMPTY_NB_PROFILE: NbProfile = {
   group_label: null,
   stly_from_prior_workbook: false,
   historical_from_current_ledger: false,
+  zero_revenue_unavailable_is_hold: false,
+
 };
 
 const stringList = (value: unknown): string[] => {
@@ -81,6 +86,8 @@ export function parseNbProfile(value: unknown): NbProfile {
     group_label: label || null,
     stly_from_prior_workbook: Boolean(raw.stly_from_prior_workbook),
     historical_from_current_ledger: Boolean(raw.historical_from_current_ledger),
+    zero_revenue_unavailable_is_hold: Boolean(raw.zero_revenue_unavailable_is_hold),
+
   };
 }
 

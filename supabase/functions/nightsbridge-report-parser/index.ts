@@ -42,7 +42,7 @@ import {
   type SheetGrid,
 } from "../_shared/nightsbridgeLedgerParse.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
-import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
+import { roomCountFromLedger, sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
   applyImportedBaseline,
   reconcileWithImportedBaseline,
@@ -510,6 +510,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     let roomCount = settings?.room_count ?? 0;
+    const roomCountConfigured = roomCount > 0;
     if (!roomCount) {
       const { count } = await admin
         .from("rolos_rooms")
@@ -518,6 +519,7 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       roomCount = count && count > 0 ? count : 1;
     }
+
 
     // A room count captured as capacity days would divide occupancy by ~30.
     const roomCheck = sanitiseRoomCount(roomCount);
@@ -548,7 +550,10 @@ Deno.serve(async (req) => {
           []) as unknown[]) ?? []),
         ...nbProfile.exclude_patterns,
       ],
+      true,
+      nbProfile.zero_revenue_unavailable_is_hold,
     );
+
 
     // One NightsBridge export can carry several properties (history that never
     // moved when a BBID split, or a sheet per property). Rows claimed by a
@@ -580,7 +585,41 @@ Deno.serve(async (req) => {
       siblingDedupe.counts = split.droppedCounts;
     }
 
-    const aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+    let aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+
+    // Occupancy above 100% is impossible: the sellable-room count is wrong (often
+    // left at the default of one for a multi-room guesthouse). The export names a
+    // unit on every line, so its distinct guest-room labels are the better
+    // denominator — recompute with those and record why.
+    const impossibleOccupancy = Object.values(aggregate.occupancy ?? {}).some(
+      (value) => Number(value) > 1.0001,
+    );
+    if (impossibleOccupancy) {
+      const fromLedger = roomCountFromLedger(workingRows);
+      if (fromLedger > roomCount) {
+        const previous = roomCount;
+        roomCount = fromLedger;
+        aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+        await logRunEvent(
+          admin,
+          runId,
+          "room_count_corrected",
+          `Occupancy came out above 100% on ${previous} sellable room(s)${
+            roomCountConfigured ? " as configured in Report Settings" : ""
+          }. The export names ${fromLedger} guest rooms, so occupancy uses ${fromLedger} rooms — ` +
+            `confirm the room count in Report Settings.`,
+          {
+            configured: roomCountConfigured ? previous : null,
+            derived_from_export: fromLedger,
+            previous,
+          },
+          actorId,
+        );
+      }
+    }
+
+
+
 
     if (siblingDedupe.dropped.length > 0) {
       const ids = Object.keys(siblingDedupe.counts);

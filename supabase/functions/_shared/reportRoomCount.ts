@@ -35,3 +35,26 @@ export function sanitiseRoomCount(configured: number | null | undefined): RoomCo
 
   return { roomCount: Math.floor(value), warning: null };
 }
+
+/**
+ * Sellable rooms inferred from the export itself.
+ *
+ * When a property has no configured room count and no rooms captured in ROL'OS,
+ * the old fallback was a single room, which printed occupancy of several hundred
+ * percent for a guesthouse. The export names the unit on every line, so the
+ * count of distinct guest-room labels is a far better floor. Holds, Room 0 and
+ * function rooms are not sellable guest rooms and are left out.
+ */
+const NOT_A_GUEST_ROOM =
+  /^(room ?0|events?|function|holding|conference|no ?room|unassigned|n\/?a|-|x)$/i;
+
+export function roomCountFromLedger(rows: { room_name?: unknown }[]): number {
+  const names = new Set<string>();
+  for (const row of rows) {
+    const name = String(row.room_name ?? "").trim();
+    if (!name || NOT_A_GUEST_ROOM.test(name)) continue;
+    names.add(name.toLowerCase().replace(/\s+/g, " "));
+  }
+  return names.size;
+}
+

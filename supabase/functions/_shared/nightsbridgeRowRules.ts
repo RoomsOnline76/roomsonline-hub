@@ -30,6 +30,13 @@ export interface RowRules {
    * NightsBridge exports carry those rows, so other systems keep their behaviour.
    */
   dropZeroRevenue: boolean;
+  /**
+   * Per-property: a room flagged unavailable that also earns nothing is a hold.
+   * Off by default — several properties host comps and tour-operator guests on
+   * rooms left flagged unavailable, and those nights are genuinely sold.
+   */
+  zeroRevenueUnavailableIsHold: boolean;
+
 }
 
 export interface RowClassification {
@@ -42,7 +49,9 @@ export const EMPTY_ROW_RULES: RowRules = {
   keepPatterns: [],
   excludePatterns: [],
   dropZeroRevenue: false,
+  zeroRevenueUnavailableIsHold: false,
 };
+
 
 
 export const ROW_CLASS_LABELS: Record<RowClass, string> = {
@@ -61,6 +70,7 @@ export function normaliseRules(
   keepPatterns: unknown,
   excludePatterns: unknown,
   dropZeroRevenue = true,
+  zeroRevenueUnavailableIsHold = false,
 ): RowRules {
   const clean = (value: unknown): string[] =>
     Array.isArray(value)
@@ -72,7 +82,9 @@ export function normaliseRules(
     keepPatterns: clean(keepPatterns),
     excludePatterns: clean(excludePatterns),
     dropZeroRevenue,
+    zeroRevenueUnavailableIsHold,
   };
+
 }
 
 /** Fields a pattern can be scoped to, e.g. `guest:MOI` or `room:Room 0`. */
@@ -190,12 +202,16 @@ export function classifyRow(
   // the booking can tell a hold apart from a guest. A property that closes
   // rooms under a name the label rules cannot recognise adds it to its own
   // exclude list (field-scoped, e.g. `guest:courtney`).
-  // An operator holding a unit often types the unit's own name into the guest
-  // field ("Kunjani Suite" against Presidential Villa). Nobody is staying, so
-  // the nights are not sellable even though a token amount may be captured.
+  // An operator holding a unit often types a unit's own name into the booking
+  // ("Kunjani Suite" against Presidential Villa, "Explorers Club" as the company
+  // on a Pink House hold). Nobody is staying, so the nights are not sellable even
+  // though a token amount may be captured. Guest and company are both checked:
+  // the hold's name is sometimes typed into one field and sometimes the other.
   if (roomNames && roomNames.size > 0) {
-    const label = roomKey(occupant(row));
-    if (label.length >= 5 && label !== roomKey(row.room_name)) {
+    const own = roomKey(row.room_name);
+    for (const field of [row.guest_name, row.company]) {
+      const label = roomKey(field);
+      if (label.length < 5 || label === own) continue;
       for (const name of roomNames) {
         if (name === label || name.startsWith(label)) {
           return { klass: "blocked_marker", matched: null };
@@ -210,6 +226,31 @@ export function classifyRow(
   if (rules.dropZeroRevenue && looksLikeBlockMarker(row)) {
     return { klass: "blocked_marker", matched: null };
   }
+
+  // An owner's own stay at no charge: the export books it to the company
+  // "Owner" and earns nothing. Both halves are required — an owner company that
+  // paid is a sold night, and a zero-revenue guest is a comp, not a hold.
+  if (
+    rules.dropZeroRevenue &&
+    Number(row.revenue ?? 0) === 0 &&
+    /^\s*owner('?s)?(\s+(use|stay))?\s*$/i.test(String(row.company ?? ""))
+  ) {
+    return { klass: "blocked_zero_revenue", matched: null };
+  }
+
+  // Properties that never host anyone on an out-of-service room switch this on:
+  // a room flagged unavailable that also earns nothing is a hold, not a night.
+  if (
+    rules.dropZeroRevenue &&
+    rules.zeroRevenueUnavailableIsHold &&
+    Number(row.revenue ?? 0) === 0 &&
+    /(unavail|not available|block|maintenance|out of order|repair)/i.test(String(row.status ?? ""))
+  ) {
+    return { klass: "blocked_zero_revenue", matched: null };
+  }
+
+
+
 
   return { klass: "sellable", matched: null };
 }
