@@ -30,6 +30,13 @@ export interface RowRules {
    * NightsBridge exports carry those rows, so other systems keep their behaviour.
    */
   dropZeroRevenue: boolean;
+  /**
+   * Per-property: a room flagged unavailable that also earns nothing is a hold.
+   * Off by default — several properties host comps and tour-operator guests on
+   * rooms left flagged unavailable, and those nights are genuinely sold.
+   */
+  zeroRevenueUnavailableIsHold: boolean;
+
 }
 
 export interface RowClassification {
