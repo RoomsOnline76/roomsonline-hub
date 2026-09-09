@@ -270,7 +270,19 @@ Deno.serve(async (req) => {
       return json({ grand, groups });
     }
 
+    /** Diagnostic: plain text of a Drive PDF, for comparing a filed pack. */
+    if (action === "probe_pdf") {
+      const fileId = String(body.file_id ?? "");
+      if (!fileId) return json({ error: "file_id is required" }, 400);
+      const bytes = await driveDownload(fileId);
+      const { extractText, getDocumentProxy } = await import("npm:unpdf@0.12.1");
+      const pdf = await getDocumentProxy(bytes);
+      const { text, totalPages } = await extractText(pdf, { mergePages: true });
+      return json({ total_pages: totalPages, text: String(text) });
+    }
+
     if (action === "probe_drive") {
+
 
       const fileId = String(body.file_id ?? "");
       if (!fileId) return json({ error: "file_id is required" }, 400);
