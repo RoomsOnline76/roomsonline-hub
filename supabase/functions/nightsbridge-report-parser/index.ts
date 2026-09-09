@@ -42,7 +42,7 @@ import {
   type SheetGrid,
 } from "../_shared/nightsbridgeLedgerParse.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
-import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
+import { roomCountFromLedger, sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
   applyImportedBaseline,
   reconcileWithImportedBaseline,
