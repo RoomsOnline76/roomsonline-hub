@@ -550,7 +550,10 @@ Deno.serve(async (req) => {
           []) as unknown[]) ?? []),
         ...nbProfile.exclude_patterns,
       ],
+      true,
+      nbProfile.zero_revenue_unavailable_is_hold,
     );
+
 
     // One NightsBridge export can carry several properties (history that never
     // moved when a BBID split, or a sheet per property). Rows claimed by a
