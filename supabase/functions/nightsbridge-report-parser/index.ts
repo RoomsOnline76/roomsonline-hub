@@ -582,27 +582,40 @@ Deno.serve(async (req) => {
       siblingDedupe.counts = split.droppedCounts;
     }
 
-    // No configured room count: the export names a unit on every line, so the
-    // distinct guest-room labels are a far better denominator than the single
-    // room the old fallback assumed (which printed occupancy over 100%).
-    if (!roomCountConfigured) {
+    let aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+
+    // Occupancy above 100% is impossible: the sellable-room count is wrong (often
+    // left at the default of one for a multi-room guesthouse). The export names a
+    // unit on every line, so its distinct guest-room labels are the better
+    // denominator — recompute with those and record why.
+    const impossibleOccupancy = Object.values(aggregate.occupancy ?? {}).some(
+      (value) => Number(value) > 1.0001,
+    );
+    if (impossibleOccupancy) {
       const fromLedger = roomCountFromLedger(workingRows);
       if (fromLedger > roomCount) {
         const previous = roomCount;
         roomCount = fromLedger;
+        aggregate = aggregateLedger(workingRows, roomCount, rowRules);
         await logRunEvent(
           admin,
           runId,
           "room_count_corrected",
-          `No sellable-room count is set for this property. The export names ${fromLedger} guest rooms, ` +
-            `so occupancy uses ${fromLedger} rooms instead of ${previous} — confirm the room count in Report Settings.`,
-          { configured: null, derived_from_export: fromLedger, previous },
+          `Occupancy came out above 100% on ${previous} sellable room(s)${
+            roomCountConfigured ? " as configured in Report Settings" : ""
+          }. The export names ${fromLedger} guest rooms, so occupancy uses ${fromLedger} rooms — ` +
+            `confirm the room count in Report Settings.`,
+          {
+            configured: roomCountConfigured ? previous : null,
+            derived_from_export: fromLedger,
+            previous,
+          },
           actorId,
         );
       }
     }
 
-    const aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+
 
 
     if (siblingDedupe.dropped.length > 0) {
