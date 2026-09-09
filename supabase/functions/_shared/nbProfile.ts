@@ -20,6 +20,9 @@ export interface NbProfile {
   group_label: string | null;
   stly_from_prior_workbook: boolean;
   historical_from_current_ledger: boolean;
+  /** Zero-revenue rows on an unavailable room are holds at this property. */
+  zero_revenue_unavailable_is_hold: boolean;
+
 }
 
 export const EMPTY_NB_PROFILE: NbProfile = {
