@@ -238,6 +238,19 @@ export function classifyRow(
     return { klass: "blocked_zero_revenue", matched: null };
   }
 
+  // Properties that never host anyone on an out-of-service room switch this on:
+  // a room flagged unavailable that also earns nothing is a hold, not a night.
+  if (
+    rules.dropZeroRevenue &&
+    rules.zeroRevenueUnavailableIsHold &&
+    Number(row.revenue ?? 0) === 0 &&
+    /(unavail|not available|block|maintenance|out of order|repair)/i.test(String(row.status ?? ""))
+  ) {
+    return { klass: "blocked_zero_revenue", matched: null };
+  }
+
+
+
 
   return { klass: "sellable", matched: null };
 }
