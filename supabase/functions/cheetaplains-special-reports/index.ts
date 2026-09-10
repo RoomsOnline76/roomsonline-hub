@@ -65,15 +65,37 @@ function readSheets(buffer: ArrayBuffer): Record<string, Grid> {
   const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
   const sheets: Record<string, Grid> = {};
   for (const name of workbook.SheetNames) {
-    sheets[name] = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
-      header: 1,
-      blankrows: true,
-      defval: null,
-      raw: true,
-    });
+    sheets[name] = toGrid(workbook, name);
   }
   return sheets;
 }
+
+const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
+  XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
+    header: 1,
+    blankrows: true,
+    defval: null,
+    raw: true,
+  });
+
+/**
+ * Reads a workbook one sheet at a time and stops at the first sheet the caller
+ * claims. The travel-partner export runs to a couple of megabytes, and turning
+ * every sheet of it into rows exhausts the worker's CPU budget, which is what
+ * silently dropped the pack from the final step.
+ */
+function findSheet(
+  buffer: ArrayBuffer,
+  claim: (grid: Grid) => boolean,
+): { grid: Grid; sheets: Record<string, Grid> } | null {
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
+  for (const name of workbook.SheetNames) {
+    const grid = toGrid(workbook, name);
+    if (claim(grid)) return { grid, sheets: { [name]: grid } };
+  }
+  return null;
+}
+
 
 const MONTHS = [
   "January",
