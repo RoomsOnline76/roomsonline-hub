@@ -65,15 +65,37 @@ function readSheets(buffer: ArrayBuffer): Record<string, Grid> {
   const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
   const sheets: Record<string, Grid> = {};
   for (const name of workbook.SheetNames) {
-    sheets[name] = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
-      header: 1,
-      blankrows: true,
-      defval: null,
-      raw: true,
-    });
+    sheets[name] = toGrid(workbook, name);
   }
   return sheets;
 }
+
+const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
+  XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
+    header: 1,
+    blankrows: true,
+    defval: null,
+    raw: true,
+  });
+
+/**
+ * Reads a workbook one sheet at a time and stops at the first sheet the caller
+ * claims. The travel-partner export runs to a couple of megabytes, and turning
+ * every sheet of it into rows exhausts the worker's CPU budget, which is what
+ * silently dropped the pack from the final step.
+ */
+function findSheet(
+  buffer: ArrayBuffer,
+  claim: (grid: Grid) => boolean,
+): { grid: Grid; sheets: Record<string, Grid> } | null {
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
+  for (const name of workbook.SheetNames) {
+    const grid = toGrid(workbook, name);
+    if (claim(grid)) return { grid, sheets: { [name]: grid } };
+  }
+  return null;
+}
+
 
 const MONTHS = [
   "January",
@@ -204,56 +226,61 @@ Deno.serve(async (req) => {
     const provisionalNotes: string[] = [];
 
     for (const file of files) {
+      const filename = String(file.original_filename ?? "");
       const download = await admin.storage.from(BUCKET).download(file.storage_path);
       if (download.error || !download.data) {
-        nationalityNotes.push(
-          `${file.original_filename}: ${download.error?.message ?? "download failed"}`,
-        );
+        nationalityNotes.push(`${filename}: ${download.error?.message ?? "download failed"}`);
         continue;
       }
 
-      let sheets: Record<string, Grid>;
+      let buffer: ArrayBuffer;
+      let hit: { grid: Grid; sheets: Record<string, Grid> } | null;
       try {
-        sheets = readSheets(
-          (await repairWorkbookBuffer(await download.data.arrayBuffer())).buffer,
-        );
+        buffer = (await repairWorkbookBuffer(await download.data.arrayBuffer())).buffer;
+        // The provisional export looks a lot like a reservation list, so it is
+        // claimed by name first and only sniffed as a fallback.
+        hit = PROVISIONAL_FILENAME.test(filename)
+          ? findSheet(buffer, isProvisionalGrid)
+          : findSheet(
+              buffer,
+              (grid) =>
+                isNationalityGrid(grid) || isProvisionalGrid(grid) || isReservationListGrid(grid),
+            );
       } catch (error) {
         nationalityNotes.push(
-          `${file.original_filename}: unreadable workbook (${error instanceof Error ? error.message : "unknown"})`,
+          `${filename}: unreadable workbook (${error instanceof Error ? error.message : "unknown"})`,
         );
         continue;
       }
 
-      const grids = Object.values(sheets);
-      if (grids.some((grid) => isNationalityGrid(grid))) {
-        const parsed = parseNationalityWorkbook(sheets, file.original_filename);
+      if (!hit) {
+        if (PROVISIONAL_FILENAME.test(filename)) {
+          provisionalNotes.push(`${filename}: no provisional rows recognised`);
+        }
+        continue;
+      }
+
+      if (isNationalityGrid(hit.grid)) {
+        // The nationality workbook keeps its two years on separate sheets, so it
+        // is the one file read in full — it is also the smallest.
+        const parsed = parseNationalityWorkbook(readSheets(buffer), filename);
         if (parsed.currentYear) nationalityCurrent = parsed.currentYear;
         if (parsed.lastYear) nationalityPrior = parsed.lastYear;
         nationalityNotes.push(...parsed.errors, ...parsed.warnings);
         continue;
       }
 
-      // The provisional export looks a lot like a reservation list, so it is
-      // claimed by name first and only sniffed as a fallback.
-      const filename = String(file.original_filename ?? "");
-      if (PROVISIONAL_FILENAME.test(filename)) {
-        const grid = grids.find((entry) => isProvisionalGrid(entry));
-        if (grid) {
-          const parsed = parseProvisionalGrid(grid, filename);
-          provisionalRevenue = { ...provisionalRevenue, ...provisionalRevenueByMonth(parsed) };
-          provisionalNotes.push(...parsed.errors, ...parsed.warnings);
-          continue;
-        }
-        provisionalNotes.push(`${filename}: no provisional rows recognised`);
+      if (PROVISIONAL_FILENAME.test(filename) || isProvisionalGrid(hit.grid)) {
+        const parsed = parseProvisionalGrid(hit.grid, filename);
+        provisionalRevenue = { ...provisionalRevenue, ...provisionalRevenueByMonth(parsed) };
+        provisionalNotes.push(...parsed.errors, ...parsed.warnings);
         continue;
       }
 
-      const reservationGrid = grids.find((grid) => isReservationListGrid(grid));
-      if (reservationGrid) {
-        const parsed = parseReservationList(reservationGrid, filename);
-        reservationFiles.push({ ...parsed, filename });
-      }
+      const parsed = parseReservationList(hit.grid, filename);
+      reservationFiles.push({ ...parsed, filename });
     }
+
 
     const reports: Array<{ kind: string; storage_path: string; row_count: number }> = [];
     const stamp = Date.now();
