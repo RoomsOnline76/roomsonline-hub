@@ -333,7 +333,7 @@ Deno.serve(async (req) => {
       packNotes.push(...gridWarnings);
       if (!Object.keys(provisionalRevenue).length) {
         packNotes.push(
-          "No provisional-bookings export on this run — the Active Enquiries column prints zero",
+          "No provisional-bookings export on this run — the Active Enquiries column prints blank",
         );
       }
 
