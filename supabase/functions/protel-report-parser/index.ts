@@ -224,9 +224,18 @@ Deno.serve(async (req) => {
     const sourceFiles = files ?? [];
 
     if (!onlyFileId) {
+      // A worker killed mid-run (CPU/resource limit) leaves the run locked as
+      // "processing" forever. Treat a lock older than the time budget as stale
+      // and take it over, so the operator can simply re-process.
       if (run.status === "processing") {
-        return json({ error: "This run is already being processed" }, 409);
+        const lockedAt = run.updated_at ? new Date(run.updated_at).getTime() : 0;
+        const stale = !lockedAt || Date.now() - lockedAt > STALE_LOCK_MS;
+        if (!stale) {
+          return json({ error: "This run is already being processed" }, 409);
+        }
+        console.log(`[protel] taking over stale processing lock on run ${runId}`);
       }
+
       await admin
         .from("report_runs")
         .update({
