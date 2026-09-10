@@ -43,6 +43,8 @@ import { parseReportProfile, reportWindowOptions } from "../_shared/reportProfil
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
 const TIME_BUDGET_MS = 100_000;
+/** A "processing" lock older than this is a dead worker, not a live run. */
+const STALE_LOCK_MS = 5 * 60_000;
 
 type Grid = unknown[][];
 
@@ -189,7 +191,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, report_month, previous_run_id, baseline_locked, imported_baseline, status")
+      .select("id, property_id, as_of_date, report_month, previous_run_id, baseline_locked, imported_baseline, status, updated_at")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -224,9 +226,18 @@ Deno.serve(async (req) => {
     const sourceFiles = files ?? [];
 
     if (!onlyFileId) {
+      // A worker killed mid-run (CPU/resource limit) leaves the run locked as
+      // "processing" forever. Treat a lock older than the time budget as stale
+      // and take it over, so the operator can simply re-process.
       if (run.status === "processing") {
-        return json({ error: "This run is already being processed" }, 409);
+        const lockedAt = run.updated_at ? new Date(run.updated_at).getTime() : 0;
+        const stale = !lockedAt || Date.now() - lockedAt > STALE_LOCK_MS;
+        if (!stale) {
+          return json({ error: "This run is already being processed" }, 409);
+        }
+        console.log(`[protel] taking over stale processing lock on run ${runId}`);
       }
+
       await admin
         .from("report_runs")
         .update({
