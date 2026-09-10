@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { Download, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,8 @@ interface SpecialReportsCardProps {
  * processed; the button here rebuilds it after new files or edits.
  */
 export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
-  const { reports, generate, isGenerating } = useSpecialReports(runId);
+  const { reports, generate, isGenerating, downloadPack, downloadOne, isDownloading } =
+    useSpecialReports(runId);
 
   const handleGenerate = useCallback(async () => {
     const result = await generate();
@@ -28,6 +29,11 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
       toast.error("Could not build the owner pack", { description: result.message });
     }
   }, [generate]);
+
+  const handleDownloadPack = useCallback(async () => {
+    const result = await downloadPack("Owner pack");
+    if (!result.ok) toast.error("Could not save the owner pack", { description: result.message });
+  }, [downloadPack]);
 
   return (
     <Card>
@@ -39,14 +45,28 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
-          {isGenerating ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4 mr-2" />
-          )}
-          {reports.length ? "Rebuild pack" : "Build pack"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
+            {isGenerating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            {reports.length ? "Rebuild pack" : "Build pack"}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void handleDownloadPack()}
+            disabled={reports.length === 0 || isDownloading}
+          >
+            {isDownloading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Download pack
+          </Button>
+        </div>
         {reports.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Process the run to build the pack. Add the provisional-bookings export for the active
@@ -86,6 +106,14 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
                     <ExternalLink className="h-4 w-4 mr-2" />
                     View
                   </Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void downloadOne(report)}
+                  aria-label={`Save ${report.title}`}
+                >
+                  <Download className="h-4 w-4" />
                 </Button>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DownloadBar } from "@/components/reports/DownloadBar";
 import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
 import { RunEventTimeline } from "@/components/reports/RunEventTimeline";
+import { SpecialReportsCard } from "@/components/reports/SpecialReportsCard";
 import { useReportPage2 } from "@/hooks/useReportPage2";
 import { reportsPath } from "@/lib/config";
 import type { RunBuilderContext } from "./types";
@@ -59,6 +60,8 @@ export function StageBuild({ ctx }: { ctx: RunBuilderContext }) {
         onDraft={ctx.onDraft}
         onPack={ctx.onPack}
       />
+
+      {ctx.ownerSlidesOffered && <SpecialReportsCard runId={ctx.runId} />}
 
       {snapshot && (
         <DraftReportPreview

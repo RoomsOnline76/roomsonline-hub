@@ -2,7 +2,17 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { toRenderableReport, type RenderableReport } from "@/lib/reportDraftHtml";
+import {
+  downloadFile,
+  htmlToBlobUrl,
+  toRenderableReport,
+  type RenderableReport,
+} from "@/lib/reportDraftHtml";
+import {
+  mergeOwnerPackPages,
+  packFileName,
+  type OwnerPackPage,
+} from "@/lib/reports/ownerPackDownload";
 
 /** Bespoke owner slides generated outside the standard pack. */
 export interface SpecialReport {
@@ -38,6 +48,7 @@ const readError = async (error: unknown): Promise<string> => {
 export function useSpecialReports(runId: string | undefined) {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const query = useQuery({
     queryKey: ["reports", "special", runId],
@@ -101,6 +112,53 @@ export function useSpecialReports(runId: string | undefined) {
     return await toRenderableReport(data.signedUrl);
   }, []);
 
+  const readHtml = useCallback(async (storagePath: string): Promise<string | null> => {
+    const { data } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 30);
+    if (!data?.signedUrl) return null;
+    const response = await fetch(data.signedUrl);
+    if (!response.ok) return null;
+    return await response.text();
+  }, []);
+
+  /** Saves the whole owner pack as one printable file, separate from the report. */
+  const downloadPack = useCallback(
+    async (documentTitle = "Owner pack"): Promise<{ ok: boolean; message?: string }> => {
+      const reports = query.data ?? [];
+      if (reports.length === 0) return { ok: false, message: "Build the pack first" };
+      setIsDownloading(true);
+      try {
+        const pages: OwnerPackPage[] = [];
+        for (const report of reports) {
+          const html = await readHtml(report.storagePath);
+          if (html) pages.push({ title: report.title, html });
+        }
+        if (pages.length === 0) return { ok: false, message: "Could not read the pack pages" };
+        const merged = mergeOwnerPackPages(pages, documentTitle);
+        const url = htmlToBlobUrl(merged);
+        await downloadFile(url, packFileName(documentTitle));
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, message: await readError(error) };
+      } finally {
+        setIsDownloading(false);
+      }
+    },
+    [query.data, readHtml],
+  );
+
+  /** Saves a single pack page on its own. */
+  const downloadOne = useCallback(
+    async (report: SpecialReport): Promise<{ ok: boolean; message?: string }> => {
+      const html = await readHtml(report.storagePath);
+      if (!html) return { ok: false, message: "Could not read this page" };
+      const url = htmlToBlobUrl(html);
+      await downloadFile(url, packFileName(report.title));
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return { ok: true };
+    },
+    [readHtml],
+  );
 
   return {
     reports: query.data ?? [],
@@ -108,6 +166,9 @@ export function useSpecialReports(runId: string | undefined) {
     generate,
     isGenerating,
     open,
+    downloadPack,
+    downloadOne,
+    isDownloading,
     refetch: query.refetch,
   };
 }
