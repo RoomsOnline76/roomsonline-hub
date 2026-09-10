@@ -162,9 +162,17 @@ Deno.serve(async (req) => {
       .eq("run_id", runId)
       .order("created_at", { ascending: true });
     if (filesError) return json({ error: filesError.message }, 500);
+    // House State / Hotel Status revenue grids are never a source for these
+    // slides. A run can carry a whole forward window of them (18+ UTF-16
+    // workbooks), and reading them all exhausts the worker's memory, so they are
+    // skipped by name before anything is downloaded.
+    const REVENUE_GRID_NAME = /house\s*state|hotel\s*status|daily\s+detailed/i;
     const files = (allFiles ?? []).filter(
-      (file) => !/\.pdf$/i.test(String(file.original_filename ?? "")),
+      (file) =>
+        !/\.pdf$/i.test(String(file.original_filename ?? "")) &&
+        !REVENUE_GRID_NAME.test(String(file.original_filename ?? "")),
     );
+
     if (!files.length) return json({ error: "No source files uploaded for this run" }, 400);
 
 
