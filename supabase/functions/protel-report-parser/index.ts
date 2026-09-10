@@ -81,6 +81,14 @@ const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
 export const SPECIALISED_ONLY_NAME =
   /nationalit|provisional|reservation\s*list|guest\s*list|arrival/i;
 
+/**
+ * Cheetah Plains' Company / Travel Agent Production export is unusually large
+ * and belongs to its always-on owner pack. Other protel properties may still
+ * use smaller Production exports for the regular report's market split.
+ */
+export const CHEETAH_PLAINS_PRODUCTION_NAME =
+  /company\s*travel\s*agent\s*production|companytravelagentproduction/i;
+
 function parseWorkbook(buffer: ArrayBuffer, filename: string): ParsedFile {
   let workbook: XLSX.WorkBook;
   try {
@@ -225,6 +233,16 @@ Deno.serve(async (req) => {
 
     const sourceFiles = files ?? [];
 
+    // Know the report set before opening any workbook. This lets Cheetah Plains
+    // leave its large partner-production export to the separate owner-pack
+    // worker instead of exhausting the regular parser's CPU allowance.
+    const { data: reportSet } = await admin
+      .from("property_report_settings")
+      .select("special_report_set")
+      .eq("property_id", run.property_id)
+      .maybeSingle();
+    const isCheetahPlainsRun = reportSet?.special_report_set === "cheetaplains";
+
     if (!onlyFileId) {
       // A worker killed mid-run (CPU/resource limit) leaves the run locked as
       // "processing" forever. Treat a lock older than the time budget as stale
@@ -281,7 +299,11 @@ Deno.serve(async (req) => {
         break;
       }
       // Specialised-only sources are never revenue grids: skip them untouched.
-      if (SPECIALISED_ONLY_NAME.test(String(file.original_filename ?? ""))) {
+      const filename = String(file.original_filename ?? "");
+      if (
+        SPECIALISED_ONLY_NAME.test(filename) ||
+        (isCheetahPlainsRun && CHEETAH_PLAINS_PRODUCTION_NAME.test(filename))
+      ) {
         skipped += 1;
         fileResults.push({
           id: file.id,
