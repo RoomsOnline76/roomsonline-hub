@@ -18,7 +18,8 @@ interface SpecialReportsCardProps {
  * processed; the button here rebuilds it after new files or edits.
  */
 export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
-  const { reports, generate, isGenerating } = useSpecialReports(runId);
+  const { reports, generate, isGenerating, downloadPack, downloadOne, isDownloading } =
+    useSpecialReports(runId);
 
   const handleGenerate = useCallback(async () => {
     const result = await generate();
@@ -28,6 +29,11 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
       toast.error("Could not build the owner pack", { description: result.message });
     }
   }, [generate]);
+
+  const handleDownloadPack = useCallback(async () => {
+    const result = await downloadPack("Owner pack");
+    if (!result.ok) toast.error("Could not save the owner pack", { description: result.message });
+  }, [downloadPack]);
 
   return (
     <Card>
