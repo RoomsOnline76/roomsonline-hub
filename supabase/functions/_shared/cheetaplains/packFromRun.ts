@@ -181,7 +181,13 @@ export function buildFiscalGrid(
     hasAnything = hasAnything || confirmed !== undefined || provisional !== undefined;
 
     put(grid.confirmedBob, key, confirmed);
-    put(grid.activeEnquiries, key, provisional ?? (confirmed !== undefined ? 0 : undefined));
+    put(
+      grid.activeEnquiries,
+      key,
+      provisional ??
+        (sources.hasProvisionalSource && confirmed !== undefined ? 0 : undefined),
+    );
+
     put(grid.budget, key, budget);
     put(grid.bobStly, key, stly);
     put(grid.lastYearActual, key, lastYear);
