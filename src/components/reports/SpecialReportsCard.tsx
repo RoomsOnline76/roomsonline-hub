@@ -5,63 +5,39 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useSpecialReports } from "@/hooks/useSpecialReports";
 import { reportsPath } from "@/lib/config";
 
 interface SpecialReportsCardProps {
   runId: string;
-  /** Whether this run opted into the add-on slides. */
-  enabled: boolean;
-  onToggle: (enabled: boolean) => void | Promise<void>;
-  isToggling?: boolean;
 }
 
 /**
- * CheetaPlains owner-pack extras: the nationality and booking-partner slides.
- * An optional extra picked per report run, on top of the standard pack.
+ * This property's own report pack — the pages the owner receives in addition to
+ * the regular report. It is built from the run's own figures whenever the run is
+ * processed; the button here rebuilds it after new files or edits.
  */
-export function SpecialReportsCard({
-  runId,
-  enabled,
-  onToggle,
-  isToggling = false,
-}: SpecialReportsCardProps) {
+export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
   const { reports, generate, isGenerating } = useSpecialReports(runId);
 
   const handleGenerate = useCallback(async () => {
     const result = await generate();
     if (result.ok) {
-      toast.success(`${result.count ?? 0} slide(s) generated`);
+      toast.success(`${result.count ?? 0} page(s) built`);
     } else {
-      toast.error("Could not build the specialised slides", { description: result.message });
+      toast.error("Could not build the owner pack", { description: result.message });
     }
   }, [generate]);
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3">
-        <div className="space-y-1">
-          <CardTitle className="text-base font-medium">Optional extra: owner slides</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Cheetah Plains nationality and travel-partner slides, added on top of the regular report.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="extras-toggle" className="text-xs text-muted-foreground">
-            {enabled ? "Included" : "Off"}
-          </Label>
-          <Switch
-            id="extras-toggle"
-            checked={enabled}
-            disabled={isToggling}
-            onCheckedChange={(next) => void onToggle(next)}
-            aria-label="Include the optional owner slides in this report"
-          />
-        </div>
+      <CardHeader className="pb-3 space-y-1">
+        <CardTitle className="text-base font-medium">Owner pack</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Built from this run and sent with the regular report. The written pages are a first
+          draft — read them before the pack goes out.
+        </p>
       </CardHeader>
-      {enabled && (
       <CardContent className="space-y-3">
         <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
           {isGenerating ? (
@@ -69,12 +45,12 @@ export function SpecialReportsCard({
           ) : (
             <Sparkles className="h-4 w-4 mr-2" />
           )}
-          {reports.length ? "Rebuild" : "Build slides"}
+          {reports.length ? "Rebuild pack" : "Build pack"}
         </Button>
         {reports.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Upload the Bookings by Nationality workbook and the reservation-list export, then
-            build the nationality and travel-partner slides.
+            Process the run to build the pack. Add the provisional-bookings export for the active
+            enquiries column, and the nationality and reservation-list exports for those pages.
           </p>
         ) : (
           reports.map((report) => (
@@ -116,7 +92,6 @@ export function SpecialReportsCard({
           ))
         )}
       </CardContent>
-      )}
     </Card>
   );
 }

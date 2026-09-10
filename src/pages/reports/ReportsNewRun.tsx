@@ -461,27 +461,17 @@ export default function ReportsNewRun() {
               </div>
             </div>
 
-            {/* Optional extras — Cheetah Plains owner slides only */}
+            {/* This property's bespoke owner pack always prints with the report. */}
             {ownerSlidesOffered && (
-              <div className="rounded-md border px-3 py-3 space-y-2">
-                <p className="text-sm font-medium">Optional extras</p>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <Checkbox
-                    checked={state.specialSet === "cheetaplains"}
-                    onCheckedChange={(checked) =>
-                      dispatch({ type: "specialSet", value: checked ? "cheetaplains" : null })
-                    }
-                    aria-label="Add Cheetah Plains owner slides"
-                  />
-                  <span className="space-y-1">
-                    <span className="block text-sm">Add Cheetah Plains owner slides</span>
-                    <span className="block text-xs text-muted-foreground">
-                      Nationality and travel-partner slides, built on top of the regular report.
-                    </span>
-                  </span>
-                </label>
+              <div className="rounded-md border px-3 py-3">
+                <p className="text-sm font-medium">Owner pack included</p>
+                <p className="text-xs text-muted-foreground">
+                  This property's own report pack is built from this run alongside the regular
+                  report.
+                </p>
               </div>
             )}
+
 
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => dispatch({ type: "step", step: 1 })}>

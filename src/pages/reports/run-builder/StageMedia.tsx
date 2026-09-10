@@ -11,14 +11,7 @@ export function StageMedia({ ctx }: { ctx: RunBuilderContext }) {
         sourceType={ctx.run.sourceType}
         propertyId={ctx.run.propertyId}
       />
-      {ctx.ownerSlidesOffered && (
-        <SpecialReportsCard
-          runId={ctx.runId}
-          enabled={ctx.ownerSlidesEnabled}
-          onToggle={ctx.onToggleOwnerSlides}
-          isToggling={ctx.isTogglingOwnerSlides}
-        />
-      )}
+      {ctx.ownerSlidesOffered && <SpecialReportsCard runId={ctx.runId} />}
     </div>
   );
 }

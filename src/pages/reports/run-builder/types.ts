@@ -63,8 +63,7 @@ export interface RunBuilderContext {
   isSavingPriorDecline: boolean;
 
   /* Cheetah Plains owner slides add-on */
+  /** True for properties whose owners receive a bespoke pack with the report. */
   ownerSlidesOffered: boolean;
-  ownerSlidesEnabled: boolean;
-  onToggleOwnerSlides: (enabled: boolean) => void;
-  isTogglingOwnerSlides: boolean;
 }
+
