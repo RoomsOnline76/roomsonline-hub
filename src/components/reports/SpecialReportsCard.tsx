@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { Download, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,14 +45,28 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
-          {isGenerating ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4 mr-2" />
-          )}
-          {reports.length ? "Rebuild pack" : "Build pack"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
+            {isGenerating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            {reports.length ? "Rebuild pack" : "Build pack"}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void handleDownloadPack()}
+            disabled={reports.length === 0 || isDownloading}
+          >
+            {isDownloading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Download pack
+          </Button>
+        </div>
         {reports.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Process the run to build the pack. Add the provisional-bookings export for the active
