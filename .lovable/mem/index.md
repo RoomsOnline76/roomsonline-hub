@@ -13,3 +13,4 @@
 - [Dated LOS / Full Stay Windows](mem://features/pms/dated-los-windows) — scope season|dates on rungs/cells, per-unit optional, advisory min_stay_nights mirrored as source rate_plan_window, no overlap on same threshold
 - [Discount Ladder Push on Save](mem://features/pms/discount-ladder-push-on-save) — long-stay/last-minute deals push via queueChannelDiscountSync on every specials/ru_discounts write; extra_adult_rate per season is the <Extra> amount
 - [Channel Account Portfolio Inheritance](mem://features/pms/channel-account-portfolio-inheritance) — one sub-account per portfolio; siblings inherit a property-scoped bound row (Albatros read as unbound)
+- [Cheetah Plains Owner Pack from Run](mem://features/reports/cheetaplains-owner-pack-from-run) — bespoke pack auto-built from each run: snapshot BOB, provisional Active Enquiries, carried budget/STLY/LY, TOBI-drafted pages
