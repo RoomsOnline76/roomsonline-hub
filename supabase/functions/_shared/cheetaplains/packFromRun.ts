@@ -87,7 +87,13 @@ export interface RunPackSources {
   occupancy: NumberMap;
   /** Provisional revenue by `YYYY-MM`. */
   provisionalRevenue: NumberMap;
+  /**
+   * True when a provisional-bookings export was read. Without one the Active
+   * Enquiries column prints blank rather than a misleading zero.
+   */
+  hasProvisionalSource?: boolean;
   carried: CarriedPack;
+
 }
 
 /** Calendar year the financial year containing `iso` opens in. */
