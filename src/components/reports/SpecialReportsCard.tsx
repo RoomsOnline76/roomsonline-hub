@@ -107,6 +107,14 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
                     View
                   </Link>
                 </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void downloadOne(report)}
+                  aria-label={`Save ${report.title}`}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))
