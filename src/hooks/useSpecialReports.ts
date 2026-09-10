@@ -2,7 +2,17 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { toRenderableReport, type RenderableReport } from "@/lib/reportDraftHtml";
+import {
+  downloadFile,
+  htmlToBlobUrl,
+  toRenderableReport,
+  type RenderableReport,
+} from "@/lib/reportDraftHtml";
+import {
+  mergeOwnerPackPages,
+  packFileName,
+  type OwnerPackPage,
+} from "@/lib/reports/ownerPackDownload";
 
 /** Bespoke owner slides generated outside the standard pack. */
 export interface SpecialReport {
@@ -38,6 +48,7 @@ const readError = async (error: unknown): Promise<string> => {
 export function useSpecialReports(runId: string | undefined) {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const query = useQuery({
     queryKey: ["reports", "special", runId],
