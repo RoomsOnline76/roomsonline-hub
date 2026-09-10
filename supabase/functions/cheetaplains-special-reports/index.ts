@@ -326,7 +326,9 @@ Deno.serve(async (req) => {
         confirmedRevenue: (snapshot.otb_revenue ?? {}) as Record<string, number>,
         occupancy: (snapshot.occupancy ?? {}) as Record<string, number>,
         provisionalRevenue,
+        hasProvisionalSource: Object.keys(provisionalRevenue).length > 0,
         carried,
+
       });
       packNotes.push(...gridWarnings);
       if (!Object.keys(provisionalRevenue).length) {
