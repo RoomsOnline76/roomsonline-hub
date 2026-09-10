@@ -269,6 +269,22 @@ Deno.serve(async (req) => {
         truncated = true;
         break;
       }
+      // Specialised-only sources are never revenue grids: skip them untouched.
+      if (SPECIALISED_ONLY_NAME.test(String(file.original_filename ?? ""))) {
+        skipped += 1;
+        fileResults.push({
+          id: file.id,
+          filename: file.original_filename,
+          parsed_ok: true,
+          row_count: 0,
+          errors: [
+            `${file.original_filename}: kept for the specialised CheetaPlains reports`,
+          ],
+        });
+        processedFiles += 1;
+        continue;
+      }
+
       if (!onlyFileId) {
         await admin
           .from("report_runs")
