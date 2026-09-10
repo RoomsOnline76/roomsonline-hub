@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, report_month, previous_run_id, baseline_locked, imported_baseline, status")
+      .select("id, property_id, as_of_date, report_month, previous_run_id, baseline_locked, imported_baseline, status, updated_at")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
