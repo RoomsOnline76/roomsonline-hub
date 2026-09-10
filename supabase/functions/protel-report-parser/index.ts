@@ -62,25 +62,27 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-/** Reads every sheet of a workbook into row-indexed cell grids. */
-function readSheets(buffer: ArrayBuffer): Record<string, Grid> {
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
-  const sheets: Record<string, Grid> = {};
-  for (const name of workbook.SheetNames) {
-    sheets[name] = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
-      header: 1,
-      blankrows: true,
-      defval: null,
-      raw: true,
-    });
-  }
-  return sheets;
-}
+const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
+  XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
+    header: 1,
+    blankrows: true,
+    defval: null,
+    raw: true,
+  });
+
+/**
+ * Workbooks that only feed the specialised CheetaPlains slides. Turning their
+ * sheets into rows here burned the whole worker CPU budget (546
+ * WORKER_RESOURCE_LIMIT) before the run could finish, so they are skipped by
+ * name and left to `cheetaplains-special-reports`.
+ */
+export const SPECIALISED_ONLY_NAME =
+  /nationalit|provisional|reservation\s*list|guest\s*list|arrival/i;
 
 function parseWorkbook(buffer: ArrayBuffer, filename: string): ParsedFile {
-  let sheets: Record<string, Grid>;
+  let workbook: XLSX.WorkBook;
   try {
-    sheets = readSheets(buffer);
+    workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
   } catch (error) {
     return {
       kind: "other",
@@ -95,7 +97,11 @@ function parseWorkbook(buffer: ArrayBuffer, filename: string): ParsedFile {
     };
   }
 
-  for (const [name, grid] of Object.entries(sheets)) {
+  // One sheet at a time, stopping at the first recognised grid: the travel-agent
+  // production export runs to megabytes and reading every sheet exhausts CPU.
+  for (const name of workbook.SheetNames) {
+    const grid = toGrid(workbook, name);
+
     if (isHouseStateGrid(grid)) {
       const parsed = parseHouseState(grid, filename);
       if (parsed.errors.length) {
