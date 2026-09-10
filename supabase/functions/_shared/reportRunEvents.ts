@@ -27,6 +27,8 @@ export type ReportRunEventType =
   | "page2_generated"
   | "segment_split_applied"
   | "special_report_generated"
+  | "special_report_failed"
+
   | "prior_report_imported";
 
 export async function logRunEvent(

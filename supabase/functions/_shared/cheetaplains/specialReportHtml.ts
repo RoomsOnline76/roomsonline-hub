@@ -433,7 +433,10 @@ export function buildDeclinedSlide(options: DeclinedSlideOptions): string {
 
 export interface RevenueGridRow {
   label: string;
+  /** `YYYY-MM` for month rows; null for quarter and total rows. */
+  month?: string | null;
   kind: "month" | "quarter" | "total";
+
   confirmedBob: number | null;
   budget: number | null;
   activeEnquiries: number | null;

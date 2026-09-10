@@ -103,10 +103,8 @@ export default function ReportsRunReview() {
     () => reportWindowOptions(reportProfile),
     [reportProfile.window_months, reportProfile.window_start_offset],
   );
-  const specialSet = run
-    ? (run.specialReportSet ?? propertySettings?.specialReportSet ?? null)
-    : null;
-  /** Only Cheetah Plains properties (or runs already carrying the set) see it. */
+  /** Only this property's own pack properties see the pack panel. */
+
   const ownerSlidesOffered =
     propertySettings?.specialReportSet === "cheetaplains" ||
     run?.specialReportSet === "cheetaplains";
@@ -380,17 +378,8 @@ export default function ReportsRunReview() {
     }
   }, [run, deleteRun, navigate]);
 
-  const handleToggleExtras = useCallback(
-    async (enabled: boolean) => {
-      if (!runId) return;
-      await setSpecialReportSet.mutateAsync({
-        runId,
-        value: enabled ? "cheetaplains" : null,
-      });
-      await refetch();
-    },
-    [runId, setSpecialReportSet, refetch],
-  );
+
+
 
   const handleDeclinePrior = useCallback(
     async (value: boolean) => {
@@ -473,10 +462,8 @@ export default function ReportsRunReview() {
     onDeclinePrior: (value) => void handleDeclinePrior(value),
     isSavingPriorDecline: setPriorReportDeclined.isPending,
     ownerSlidesOffered,
-    ownerSlidesEnabled: specialSet === "cheetaplains",
-    onToggleOwnerSlides: (enabled) => void handleToggleExtras(enabled),
-    isTogglingOwnerSlides: setSpecialReportSet.isPending,
   };
+
 
   const stageView = {
     parse: <StageParse ctx={ctx} />,

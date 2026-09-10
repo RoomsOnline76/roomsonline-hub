@@ -1,12 +1,19 @@
-// Builds the two CheetaPlains owner-pack slides — "Bookings by nationality" and
-// "Top booking travel partners" — from the protel sources attached to a run.
+// Builds the CheetaPlains bespoke owner pack for a run.
 //
 // Input : { run_id }
 // Output: { reports: [{ kind, storage_path, row_count }] }
 //
-// The slides are stand-alone landscape A4 HTML documents stored in the
-// `revenue-reports` bucket and indexed in `report_special_reports`. They are
-// only produced for properties hard-flagged with `special_report_set = 'cheetaplains'`.
+// The pack prints alongside the standard revenue report and is assembled from
+// the run's own figures: confirmed revenue and occupancy from the aggregated
+// snapshot, active enquiries from the provisional-bookings export, and the
+// budget / STLY / last-year columns carried from the property's previous pack.
+// The written pages are drafted by TOBI and stay editable. When a run has no
+// snapshot yet, only the workbook-driven nationality and travel-partner slides
+// are produced.
+//
+// Slides are stand-alone landscape A4 HTML documents in the `revenue-reports`
+// bucket, indexed in `report_special_reports`. Only properties flagged with
+// `special_report_set = 'cheetaplains'` are served.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
@@ -26,10 +33,21 @@ import {
   type PartnerParseResult,
 } from "../_shared/cheetaplains/partners.ts";
 import {
+  isProvisionalGrid,
+  parseProvisionalGrid,
+  provisionalRevenueByMonth,
+  PROVISIONAL_FILENAME,
+} from "../_shared/cheetaplains/provisional.ts";
+import {
   buildNationalitySlide,
   buildPartnersSlide,
   type SpecialReportBranding,
+  type SpecialReportContext,
 } from "../_shared/cheetaplains/specialReportHtml.ts";
+import { buildOwnerPackSlides, revenueGridRows } from "../_shared/cheetaplains/ownerPack.ts";
+import { buildRunOwnerExtract, fiscalGridLabel, fiscalStartYear } from "../_shared/cheetaplains/packFromRun.ts";
+import { loadCarriedPack } from "../_shared/cheetaplains/carriedPack.ts";
+import { draftPackNarratives } from "../_shared/cheetaplains/packCommentary.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -87,28 +105,32 @@ const priorFiscalLabel = (label: string): string => {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const admin = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
 
   try {
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
     if (!token) return json({ error: "Missing authorization" }, 401);
 
-    const { data: userData, error: userError } = await admin.auth.getUser(token);
-    if (userError || !userData.user) return json({ error: "Invalid session" }, 401);
+    // The report parsers call this straight after writing a snapshot, using the
+    // service role — there is no end user in that path.
+    const internal = token === serviceKey;
+    let actorId: string | null = null;
 
-    const { data: allowed, error: accessError } = await admin.rpc("has_reports_access", {
-      _user_id: userData.user.id,
-    });
-    if (accessError) return json({ error: accessError.message }, 500);
-    if (!allowed) return json({ error: "Not authorised for revenue reports" }, 403);
+    if (!internal) {
+      const { data: userData, error: userError } = await admin.auth.getUser(token);
+      if (userError || !userData.user) return json({ error: "Invalid session" }, 401);
+      const { data: allowed, error: accessError } = await admin.rpc("has_reports_access", {
+        _user_id: userData.user.id,
+      });
+      if (accessError) return json({ error: accessError.message }, 500);
+      if (!allowed) return json({ error: "Not authorised for revenue reports" }, 403);
+      actorId = userData.user.id;
+    }
 
     const body = await req.json().catch(() => ({}));
     const runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
-    const actorId = userData.user.id;
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
@@ -145,10 +167,11 @@ Deno.serve(async (req) => {
       brandPrimary: settings?.brand_source === "rol" ? null : (settings?.brand_primary ?? null),
       brandSecondary: settings?.brand_source === "rol" ? null : (settings?.brand_secondary ?? null),
     };
-    const context = {
+    const asOfDate = String(run.as_of_date ?? "").slice(0, 10);
+    const context: SpecialReportContext = {
       propertyName: property?.name ?? "Property",
-      asOfDate: String(run.as_of_date ?? "").slice(0, 10),
-      footerLabel: footerLabel(run.as_of_date),
+      asOfDate,
+      footerLabel: footerLabel(asOfDate),
       branding,
     };
 
@@ -173,13 +196,12 @@ Deno.serve(async (req) => {
         !REVENUE_GRID_NAME.test(String(file.original_filename ?? "")),
     );
 
-    if (!files.length) return json({ error: "No source files uploaded for this run" }, 400);
-
-
     let nationalityCurrent: NationalityYear | null = null;
     let nationalityPrior: NationalityYear | null = null;
     const nationalityNotes: string[] = [];
     const reservationFiles: Array<PartnerParseResult & { filename: string }> = [];
+    let provisionalRevenue: Record<string, number> = {};
+    const provisionalNotes: string[] = [];
 
     for (const file of files) {
       const download = await admin.storage.from(BUCKET).download(file.storage_path);
@@ -211,10 +233,25 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // The provisional export looks a lot like a reservation list, so it is
+      // claimed by name first and only sniffed as a fallback.
+      const filename = String(file.original_filename ?? "");
+      if (PROVISIONAL_FILENAME.test(filename)) {
+        const grid = grids.find((entry) => isProvisionalGrid(entry));
+        if (grid) {
+          const parsed = parseProvisionalGrid(grid, filename);
+          provisionalRevenue = { ...provisionalRevenue, ...provisionalRevenueByMonth(parsed) };
+          provisionalNotes.push(...parsed.errors, ...parsed.warnings);
+          continue;
+        }
+        provisionalNotes.push(`${filename}: no provisional rows recognised`);
+        continue;
+      }
+
       const reservationGrid = grids.find((grid) => isReservationListGrid(grid));
       if (reservationGrid) {
-        const parsed = parseReservationList(reservationGrid, file.original_filename);
-        reservationFiles.push({ ...parsed, filename: file.original_filename });
+        const parsed = parseReservationList(reservationGrid, filename);
+        reservationFiles.push({ ...parsed, filename });
       }
     }
 
@@ -254,6 +291,107 @@ Deno.serve(async (req) => {
       reports.push({ kind, storage_path: path, row_count: rowCount });
     };
 
+    /* ── The full pack, from this run's own figures ─────────────── */
+
+    const { data: snapshot } = await admin
+      .from("report_snapshots")
+      .select("otb_revenue, occupancy, months")
+      .eq("run_id", runId)
+      .maybeSingle();
+
+    const packNotes: string[] = [...provisionalNotes];
+    let packSlideCount = 0;
+
+    if (snapshot && asOfDate) {
+      const { carried, sources } = await loadCarriedPack(admin, run.property_id, runId);
+
+      // Workbooks uploaded to this run always beat the carried tables.
+      if (nationalityCurrent) {
+        carried.nationality = buildNationalityTable(nationalityCurrent, nationalityPrior);
+        carried.nationalityCurrentLabel = fiscalYearLabel(asOfDate);
+        carried.nationalityPriorLabel = priorFiscalLabel(carried.nationalityCurrentLabel);
+      }
+      if (reservationFiles.length) {
+        const { current, prior } = assignFiscalYears(reservationFiles);
+        carried.partnersCurrent = buildPartnerTotals(current?.rows ?? []);
+        carried.partnersPrior = buildPartnerTotals(prior?.rows ?? []);
+        carried.partnersCurrentLabel = fiscalYearLabel(current?.period?.from ?? asOfDate);
+        carried.partnersPriorLabel = prior?.period?.from
+          ? fiscalYearLabel(prior.period.from)
+          : priorFiscalLabel(carried.partnersCurrentLabel);
+      }
+
+      const { extract, warnings: gridWarnings } = buildRunOwnerExtract({
+        asOfDate,
+        confirmedRevenue: (snapshot.otb_revenue ?? {}) as Record<string, number>,
+        occupancy: (snapshot.occupancy ?? {}) as Record<string, number>,
+        provisionalRevenue,
+        carried,
+      });
+      packNotes.push(...gridWarnings);
+      if (!Object.keys(provisionalRevenue).length) {
+        packNotes.push(
+          "No provisional-bookings export on this run — the Active Enquiries column prints zero",
+        );
+      }
+
+      // TOBI drafts the two written pages from the grid; last month's pages are
+      // the fallback and the voice reference.
+      const startYear = fiscalStartYear(asOfDate);
+      const drafted = await draftPackNarratives({
+        fiscalLabel: fiscalGridLabel(startYear),
+        forwardLabel: extract.forwardYear ? fiscalGridLabel(startYear + 1) : null,
+        currentRows: extract.currentYear ? revenueGridRows(extract.currentYear) : [],
+        forwardRows: extract.forwardYear ? revenueGridRows(extract.forwardYear) : [],
+        carried: carried.narratives,
+        propertyName: context.propertyName,
+        asOfDate,
+      });
+      extract.narratives = drafted.narratives;
+      packNotes.push(...drafted.warnings);
+
+      const currentLabel = fiscalYearLabel(asOfDate);
+      const packSlides = buildOwnerPackSlides(extract, context, {
+        currentLabel,
+        priorLabel: priorFiscalLabel(currentLabel),
+      });
+
+      for (const [index, slide] of packSlides.entries()) {
+        await upload(
+          slide.key,
+          slide.title,
+          slide.html,
+          slide.rowCount,
+          { ...slide.payload, pack_index: index, source: "run" },
+          [...slide.warnings, ...(index === 0 ? packNotes : [])],
+        );
+      }
+      packSlideCount = packSlides.length;
+
+      if (packSlideCount) {
+        await logRunEvent(
+          admin,
+          runId,
+          "special_report_generated",
+          `${packSlideCount} owner-pack slide(s) built from this run${sources.length ? `, comparison columns carried from ${sources[0]}` : ""}`,
+          { reports, commentary_drafted: drafted.drafted, carried_from: sources.slice(0, 3) },
+          actorId,
+        );
+        return json({
+          success: true,
+          run_id: runId,
+          reports,
+          source: "run",
+          commentary_drafted: drafted.drafted,
+          notes: [...packNotes, ...nationalityNotes],
+        });
+      }
+    }
+
+    /* ── Fallback: workbook-only slides (no snapshot yet) ───────── */
+
+    if (!files.length) return json({ error: "No source files uploaded for this run" }, 400);
+
     if (nationalityCurrent) {
       const rows = buildNationalityTable(nationalityCurrent, nationalityPrior);
       const currentLabel = fiscalYearLabel(run.as_of_date);
@@ -270,7 +408,7 @@ Deno.serve(async (req) => {
           hasPrior: Boolean(nationalityPrior),
         }),
         rows.length,
-        { current_label: currentLabel, prior_label: priorLabel, has_prior: Boolean(nationalityPrior) },
+        { current_label: currentLabel, prior_label: priorLabel, has_prior: Boolean(nationalityPrior), rows },
         nationalityNotes,
       );
     }
@@ -291,21 +429,15 @@ Deno.serve(async (req) => {
           ...context,
           currentLabel,
           priorLabel,
-          current: currentRows.map((row) => ({
-            partner: row.partner,
-            nights: row.nights,
-            revenue: row.revenue,
-          })),
-          prior: priorRows.map((row) => ({
-            partner: row.partner,
-            nights: row.nights,
-            revenue: row.revenue,
-          })),
+          current: currentRows,
+          prior: priorRows,
         }),
         currentRows.length,
         {
           current_label: currentLabel,
           prior_label: priorLabel,
+          current: currentRows,
+          prior: priorRows,
           current_file: current?.filename ?? null,
           prior_file: prior?.filename ?? null,
         },
@@ -317,8 +449,8 @@ Deno.serve(async (req) => {
       return json(
         {
           error:
-            "No CheetaPlains source files recognised — upload the Bookings by Nationality workbook and/or the reservation list export",
-          notes: nationalityNotes,
+            "Nothing to build yet — process the run's exports, or upload the Bookings by Nationality workbook and the reservation-list export",
+          notes: [...packNotes, ...nationalityNotes],
         },
         422,
       );

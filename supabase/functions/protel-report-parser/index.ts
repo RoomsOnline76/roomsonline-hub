@@ -710,6 +710,41 @@ Deno.serve(async (req) => {
       })
       .eq("id", runId);
 
+    // Properties with their own owner pack get it rebuilt from this run's figures
+    // straight away, so it always travels with the regular report. A failure here
+    // is recorded but never fails the run — the pack can be rebuilt from the run
+    // page.
+    if (settings?.special_report_set === "cheetaplains") {
+      try {
+        const packResponse = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/cheetaplains-special-reports`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ run_id: runId }),
+          },
+        );
+        if (!packResponse.ok) {
+          const detail = await packResponse.text();
+          console.error(`owner pack build failed [${packResponse.status}]: ${detail}`);
+          await logRunEvent(
+            admin,
+            runId,
+            "special_report_failed",
+            "The owner pack could not be built automatically — rebuild it from the run page",
+            { status: packResponse.status, detail: detail.slice(0, 500) },
+            actorId,
+          );
+        }
+      } catch (packError) {
+        console.error("owner pack build failed:", packError);
+      }
+    }
+
+
     await logRunEvent(
       admin,
       runId,

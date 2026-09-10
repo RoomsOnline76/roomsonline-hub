@@ -99,7 +99,9 @@ const rowFor = (
   keys: string[],
 ): RevenueGridRow => ({
   label,
+  month: kind === "month" ? keys[0] : null,
   kind,
+
   confirmedBob: kind === "month" ? (grid.confirmedBob[keys[0]] ?? null) : sum(grid, "confirmedBob", keys),
   budget: kind === "month" ? (grid.budget[keys[0]] ?? null) : sum(grid, "budget", keys),
   activeEnquiries:
@@ -190,8 +192,11 @@ const gridSlides = (
         varianceCombinedToBudget: variance,
       }),
       rowCount: rows.length,
-      payload: { fiscal_label: grid.label, months, scope, combined_total: combinedTotal },
+      // `rows` is what a later run reads back for budget, STLY and last-year
+      // columns the daily exports cannot know.
+      payload: { fiscal_label: grid.label, months, scope, combined_total: combinedTotal, rows },
       warnings: [],
+
     },
   ];
 
