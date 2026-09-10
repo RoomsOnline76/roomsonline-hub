@@ -715,18 +715,24 @@ Deno.serve(async (req) => {
     // is recorded but never fails the run — the pack can be rebuilt from the run
     // page.
     if (settings?.special_report_set === "cheetaplains") {
-      try {
-        const packResponse = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/cheetaplains-special-reports`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({ run_id: runId }),
+      const buildPack = () =>
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/cheetaplains-special-reports`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
-        );
+          body: JSON.stringify({ run_id: runId }),
+        });
+
+      try {
+        let packResponse = await buildPack();
+        // A cold worker that runs out of its compute budget gets one more go on a
+        // fresh worker before the pack is reported as missing.
+        if (!packResponse.ok && (packResponse.status === 546 || packResponse.status >= 500)) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          packResponse = await buildPack();
+        }
         if (!packResponse.ok) {
           const detail = await packResponse.text();
           console.error(`owner pack build failed [${packResponse.status}]: ${detail}`);
@@ -743,6 +749,7 @@ Deno.serve(async (req) => {
         console.error("owner pack build failed:", packError);
       }
     }
+
 
 
     await logRunEvent(
