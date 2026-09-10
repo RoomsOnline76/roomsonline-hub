@@ -43,6 +43,8 @@ import { parseReportProfile, reportWindowOptions } from "../_shared/reportProfil
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
 const TIME_BUDGET_MS = 100_000;
+/** A "processing" lock older than this is a dead worker, not a live run. */
+const STALE_LOCK_MS = 5 * 60_000;
 
 type Grid = unknown[][];
 
