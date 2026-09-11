@@ -24,13 +24,20 @@ import {
   parseProvisionalGrid,
 } from "../_shared/cheetaplains/provisional.ts";
 import {
+  isPipelineGrid,
+  parsePipelineGrid,
+  type PipelineRole,
+} from "../_shared/cheetaplains/pipeline.ts";
+import {
   buildDailyFigures,
   buildDailyWorkbook,
+  monthlyOnBooks,
   parseMovementPdf,
   parsePastedEmail,
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
+import { appendDaySheet, daySheetName } from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
 import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
@@ -56,10 +63,19 @@ const json = (body: unknown, status = 200) =>
 type Grid = unknown[][];
 
 /** What one source file contributed to the day, stored on its row. */
+type PipelineTotals = {
+  count: number;
+  value: number;
+  months: Record<string, { count: number; value: number }>;
+};
+
 type DailyPayload =
   | { kind: "house_state"; days: ProtelDay[] }
   | { kind: "provisional"; months: Record<string, { revenue: number; nights: number }> }
+  | { kind: "pipeline"; roles: Partial<Record<PipelineRole, PipelineTotals>> }
   | { kind: "created" | "cancelled"; movement: DailyMovement }
+  /** The running Daily Detailed workbook, kept as the base for the day's sheet. */
+  | { kind: "running_workbook" }
   | { kind: "skipped" };
 
 interface StoredDaily {
@@ -98,6 +114,14 @@ const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
   }
   return parts.join(" ");
 };
+
+/**
+ * The running Daily Detailed workbook itself. It is never read as a source —
+ * it is the base the day's new sheet is added to, so it is recognised by name
+ * and left alone.
+ */
+const isRunningWorkbook = (name: string): boolean =>
+  /daily[\s_-]*detailed[\s_-]*report/i.test(name) && /\.xlsx$/i.test(name);
 
 /** Monthly-only exports are large and hold nothing a single day needs. */
 const isDailyFile = (name: string): boolean =>
