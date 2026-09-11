@@ -79,6 +79,9 @@ interface RunRow {
   draft_report_path: string | null;
   page2_enabled: boolean | null;
   created_at: string;
+  report_kind: string | null;
+  excel_path: string | null;
+  report_special_reports: { count: number }[] | null;
   report_insights:
     | { page2: unknown; narrative: string | null; narrative_final: string | null }[]
     | { page2: unknown; narrative: string | null; narrative_final: string | null }
