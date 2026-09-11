@@ -4,87 +4,63 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Channel Manager</title>
+
+    <!--
+      Official White Label Channel Manager install assets. The vendor's Connect
+      surface is a Bootstrap 3.3.7 dropdown/modal, so these must be present on this
+      document and no other Bootstrap version may be loaded here.
+      `<base href="/">` belongs to this embed document only, never the parent SPA.
+    -->
+    <base href="/" />
+    <link
+      href="https://fonts.googleapis.com/css?family=Open+Sans"
+      rel="stylesheet"
+      type="text/css"
+    />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"
+      integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo"
+      crossorigin="anonymous"
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+      integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+      crossorigin="anonymous"
+    />
+    <script
+      src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+      integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+      crossorigin="anonymous"
+    ></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css"
+    />
+
     <style>
       html,
       body {
         margin: 0;
         padding: 0;
         height: 100%;
-        /* Set from the ?bg= param so the frame matches the ROL'OS page background. */
-        background: var(--rolos-bg, #fff);
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #fff;
       }
       #ruApp {
         min-height: 100%;
-        background: transparent;
-      }
-
-      /*
-        Night mode: the embedded channel manager ships a light-only stylesheet, so its
-        content is left at its native colours (inverting it made the connector cards
-        illegible). Only the surrounding canvas follows the ROL'OS theme via ?bg=.
-      */
-
-
-
-      /*
-        Layout-only centering of the White Label client. RU ships a left-aligned
-        fluid layout; inside our fixed-width embed frame that leaves a large gap on
-        the right. We centre their page shell and the channel card grids without
-        touching any of their colours, sizing or behaviour.
-      */
-      #ruApp > * {
-        margin-left: auto;
-        margin-right: auto;
-      }
-      #ruApp .container,
-      #ruApp .container-fluid,
-      #ruApp .content,
-      #ruApp .page-content,
-      #ruApp .main-content {
-        margin-left: auto !important;
-        margin-right: auto !important;
-        max-width: 1280px;
-        float: none !important;
-      }
-      /* Channel / sales-channel card grids: centre the wrapped rows. */
-      #ruApp .row,
-      #ruApp [class*="channels-list"],
-      #ruApp [class*="channel-list"],
-      #ruApp [class*="card-list"],
-      #ruApp [class*="tiles"] {
-        justify-content: center;
-      }
-
-      /*
-        Channel logo fallback: the upstream channel-logo CDN currently 404s for many
-        channels, which left every card visually empty. When a logo fails we swap in a
-        text label built from the image's alt text so the channel is still identifiable
-        and connectable.
-      */
-      #ruApp .rolos-logo-fallback {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 48px;
-        padding: 8px 10px;
-        font-size: 15px;
-        font-weight: 600;
-        line-height: 1.2;
-        text-align: center;
-        color: #1a1a2e;
       }
     </style>
-
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   </head>
   <body>
     <!--
-      Host document for the Rentals United White Label one-line script.
+      Host document for the vendor White Label one-line script.
 
-      It must be served from a real URL (not an `srcdoc` iframe): the embedded Angular
-      client calls history.replaceState/pushState on boot, which throws a SecurityError
-      in a srcdoc document and makes the client show its generic "OOOPS" dialog.
+      It must be served from a real URL (not an `srcdoc` iframe): the embedded client
+      calls history.replaceState/pushState on boot, which throws a SecurityError in a
+      srcdoc document and makes the client show its generic "OOOPS" dialog.
+
+      Nothing here may read, restyle or rewrite the client's DOM after boot.
     -->
     <div id="ruApp"></div>
     <script>
@@ -94,29 +70,11 @@
         var refreshToken = q.get("refreshToken") || "";
         var ownerId = q.get("ownerId") || "";
 
-        // Follow the ROL'OS theme: the host page hands us its resolved background
-        // colour and light/dark mode so the frame never looks pasted on.
-        var bg = q.get("bg");
-        if (bg) document.documentElement.style.setProperty("--rolos-bg", bg);
-        document.documentElement.setAttribute(
-          "data-rolos-theme",
-          q.get("theme") === "dark" ? "dark" : "light"
-        );
-        // Later theme switches arrive from the parent without reloading the client.
-        window.addEventListener("message", function (event) {
-          var data = event.data || {};
-          if (data.type !== "rolos-theme") return;
-          if (data.bg) document.documentElement.style.setProperty("--rolos-bg", data.bg);
-          document.documentElement.setAttribute(
-            "data-rolos-theme",
-            data.theme === "dark" ? "dark" : "light"
-          );
-        });
-
         if (!token || !refreshToken) {
           parent.postMessage({ type: "ru-wl-error" }, "*");
           return;
         }
+
         var src =
           "https://new.rentalsunited.com/white-pms-client/script?" +
           new URLSearchParams({
@@ -127,60 +85,37 @@
             ownerId: ownerId,
           }).toString();
 
+        var readySent = false;
+        var readyObserver = null;
+        function signalReady() {
+          if (readySent) return;
+          readySent = true;
+          if (readyObserver) readyObserver.disconnect();
+          parent.postMessage({ type: "ru-wl-ready" }, "*");
+        }
+
+        function watchForCards() {
+          readyObserver = new MutationObserver(function () {
+            if (document.querySelector("#ruApp .channel-card")) signalReady();
+          });
+          readyObserver.observe(document.getElementById("ruApp"), {
+            childList: true,
+            subtree: true,
+          });
+          // Fallback: hand the canvas over 8s after the client script loads even if
+          // the card selector never matches, so the parent loader never sticks.
+          setTimeout(signalReady, 8000);
+        }
+
         function boot() {
           var s = document.createElement("script");
           s.src = src;
+          s.onload = watchForCards;
           s.onerror = function () {
             parent.postMessage({ type: "ru-wl-error" }, "*");
           };
           document.head.appendChild(s);
         }
-
-        /*
-          The host document itself loads before the Angular channel client. Notify the
-          parent only when actual channel cards exist, otherwise the parent would hide
-          its loader while the iframe is still an empty white canvas.
-        */
-        var readySent = false;
-        var readyObserver = new MutationObserver(function () {
-          if (readySent || !document.querySelector("#ruApp .channel-card")) return;
-          readySent = true;
-          parent.postMessage({ type: "ru-wl-ready" }, "*");
-          readyObserver.disconnect();
-        });
-        readyObserver.observe(document.getElementById("ruApp"), {
-          childList: true,
-          subtree: true,
-        });
-        /*
-          Replace any logo that fails to load with its alt-text label, so a broken
-          upstream logo asset never renders an empty, unreadable channel card.
-        */
-        function labelBrokenLogo(img) {
-          if (!img || img.dataset.rolosFallback === "1") return;
-          img.dataset.rolosFallback = "1";
-          var span = document.createElement("span");
-          span.className = "rolos-logo-fallback";
-          span.textContent = img.getAttribute("alt") || "Channel";
-          img.style.display = "none";
-          if (img.parentNode) img.parentNode.insertBefore(span, img);
-        }
-        document.addEventListener(
-          "error",
-          function (e) {
-            var t = e.target;
-            if (t && t.tagName === "IMG") labelBrokenLogo(t);
-          },
-          true
-        );
-        // Images that already failed before the observer/listener attached.
-        setInterval(function () {
-          var imgs = document.querySelectorAll("#ruApp img");
-          for (var i = 0; i < imgs.length; i++) {
-            var im = imgs[i];
-            if (im.complete && im.naturalWidth === 0) labelBrokenLogo(im);
-          }
-        }, 1000);
 
         if (window.jQuery) boot();
         else window.addEventListener("load", boot);
