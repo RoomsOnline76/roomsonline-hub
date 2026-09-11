@@ -36,6 +36,12 @@ export interface PortfolioRun {
   page2Enabled: boolean;
   summary: RunSummaryPreview;
   createdAt: string;
+  /** Which report structure the run produced. */
+  reportKind: ReportKind;
+  /** Storage path of the running daily workbook, when one was built. */
+  excelPath: string | null;
+  /** Bespoke owner-pack pages generated for the run. */
+  specialReportCount: number;
 }
 
 /** Where a property stands in its reporting cycle. */
