@@ -648,8 +648,13 @@ Deno.serve(async (req) => {
       admin,
       runId,
       "processing_succeeded",
-      `Daily Detailed Report built for ${asOf} (${allFigures.length} day(s) in the running workbook)`,
-      { days_parsed: days.length, pasted_email: Boolean(pasted.note) },
+      `Daily Detailed Report built for ${asOf} — sheet ${sheetName}. ${workbookNotes.join(" · ")}`,
+      {
+        days_parsed: days.length,
+        pasted_email: Boolean(pasted.note),
+        sheet: sheetName,
+        workbook_notes: workbookNotes,
+      },
       actorId,
     );
 
