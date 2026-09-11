@@ -330,8 +330,40 @@ Deno.serve(async (req) => {
                   // sheet is converted in full.
                   const probe = toGrid(workbook, name, PROBE_ROWS);
                   const isHouseState = isHouseStateGrid(probe);
-                  const isProvisional = !isHouseState && isProvisionalGrid(probe);
+                  const isPipeline = !isHouseState && isPipelineGrid(probe);
+                  const isProvisional =
+                    !isHouseState && !isPipeline && isProvisionalGrid(probe);
                   probe.length = 0;
+                  if (isPipeline) {
+                    // The tracker keeps enquiries, confirmations and losses on
+                    // separate sheets — all three are read in one pass.
+                    const roles: Partial<Record<PipelineRole, PipelineTotals>> = {};
+                    const pipelineNotes: string[] = [];
+                    let rows = 0;
+                    for (const sheetName of workbook.SheetNames) {
+                      const sheetGrid = toGrid(workbook, sheetName);
+                      const result = parsePipelineGrid(sheetGrid, sheetName, filename);
+                      sheetGrid.length = 0;
+                      if (!result.rowsRead) {
+                        pipelineNotes.push(...result.warnings);
+                        continue;
+                      }
+                      const months: Record<string, { count: number; value: number }> = {};
+                      for (const [month, bucket] of Object.entries(result.months)) {
+                        months[month] = { count: bucket.count, value: bucket.value };
+                      }
+                      roles[result.role] = { count: result.count, value: result.value, months };
+                      rows += result.rowsRead;
+                      pipelineNotes.push(...result.warnings);
+                    }
+                    entry = {
+                      payload: { kind: "pipeline", roles },
+                      notes: pipelineNotes,
+                      ok: rows > 0,
+                      rows,
+                    };
+                    break;
+                  }
                   if (!isHouseState && !isProvisional) continue;
                   const grid = toGrid(workbook, name);
                   if (isHouseState) {
