@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { ReportHoverSummary } from "@/components/reports/dashboard/ReportHoverSummary";
-import { RunHistoryList, formatRunMonth } from "@/components/reports/dashboard/RunHistoryList";
+import {
+  PRODUCT_GROUP_LABEL,
+  RunHistoryList,
+  runPeriodLabel,
+  runProducts,
+  type RunProduct,
+} from "@/components/reports/dashboard/RunHistoryList";
 import { CADENCE_LABEL } from "@/hooks/useReportRuns";
 import type { CycleState, PortfolioProperty, PortfolioRun } from "@/hooks/useReportPortfolio";
 import { reportsPath } from "@/lib/config";
