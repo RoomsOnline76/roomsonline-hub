@@ -324,7 +324,7 @@ export async function appendDaySheet(
   if (!templatePath || !zip.file(templatePath)) {
     throw new Error(`Sheet ${template.name} could not be read from the workbook`);
   }
-  const templateXml = await zip.file(templatePath)!.async("string");
+  let templateXml = await zip.file(templatePath)!.async("string");
   const result = patchDaySheet(templateXml, patch);
 
   if (existing) {
