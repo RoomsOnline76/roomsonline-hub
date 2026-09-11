@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type Connect, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
@@ -63,8 +63,8 @@ const buildInfoPlugin = (buildSeq: number) => {
  * published hosting serves the physical public/channel-manager/index.html first.
  */
 const channelManagerDocumentPlugin = (): Plugin => {
-  const installMiddleware: NonNullable<Plugin["configureServer"]> = (server) => {
-    server.middlewares.use((request, _response, next) => {
+  const installMiddleware = (middlewares: Connect.Server) => {
+    middlewares.use((request, _response, next) => {
       const url = request.url;
       if (url === "/channel-manager" || url?.startsWith("/channel-manager/")) {
         const queryIndex = url.indexOf("?");
@@ -77,8 +77,12 @@ const channelManagerDocumentPlugin = (): Plugin => {
 
   return {
     name: "channel-manager-document",
-    configureServer: installMiddleware,
-    configurePreviewServer: installMiddleware,
+    configureServer(server) {
+      installMiddleware(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      installMiddleware(server.middlewares);
+    },
   };
 };
 

@@ -4,7 +4,7 @@
 - [x] Move the White Label client to the physical `/channel-manager/` document
 - [x] Remove the root base tag and vendor-DOM inspection
 - [x] Preserve popup/OAuth sandbox permissions and isolate preview routing
-- [ ] Clear preview typecheck/build errors
+- [x] Clear preview typecheck/build errors
 - [ ] Verify Booking.com or Airbnb opens the vendor wizard in an authenticated browser session
 
 - [x] Step A onboarding uses distribution email `ru-two@polka.co.za` (OwnerID 742640, verified child keys)
