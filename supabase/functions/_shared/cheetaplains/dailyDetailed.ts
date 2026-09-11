@@ -181,6 +181,54 @@ export function parseMovementPdf(
   };
 }
 
+/* ── pasted email text ─────────────────────────────────────────── */
+
+export interface PastedEmail {
+  created: DailyMovement | null;
+  cancelled: DailyMovement | null;
+  /** The text as pasted, trimmed for printing on the report. */
+  note: string | null;
+}
+
+const MOVEMENT_WORDS = {
+  created: /(created|new bookings?|new reservations?)/i,
+  cancelled: /(cancelled|canceled|cancellations?)/i,
+};
+
+/**
+ * Reads what can be recognised from the day's email text.
+ *
+ * Only the movement counts and their money totals are taken — anything else is
+ * kept as a note and printed verbatim. Values here are fallbacks: the exports
+ * always take precedence.
+ */
+export function parsePastedEmail(raw: string | null | undefined): PastedEmail {
+  const text = (raw ?? "").trim();
+  if (!text) return { created: null, cancelled: null, note: null };
+
+  const line = (matcher: RegExp): DailyMovement | null => {
+    for (const candidate of text.split(/\r?\n/)) {
+      if (!matcher.test(candidate)) continue;
+      const count = candidate.match(/(?:^|[^\d.,])(\d{1,3})(?!\d)/);
+      if (!count) continue;
+      const value = candidate.match(/R\s?([\d\s.,]+\d)/i);
+      return {
+        count: Number(count[1]),
+        value: value ? money(value[1]) : null,
+        nights: null,
+        period: null,
+      };
+    }
+    return null;
+  };
+
+  return {
+    created: line(MOVEMENT_WORDS.created),
+    cancelled: line(MOVEMENT_WORDS.cancelled),
+    note: text.slice(0, 1200),
+  };
+}
+
 /* ── running workbook ──────────────────────────────────────────── */
 
 const MONEY_FORMAT = '#,##0;(#,##0);"-"';

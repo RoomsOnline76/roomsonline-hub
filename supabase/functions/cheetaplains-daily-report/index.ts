@@ -1,14 +1,16 @@
 /**
  * Builds the Cheetah Plains Daily Detailed Report from a run's uploaded files.
  *
- * Reads the day's protel House State exports, the provisional-booking export
- * and the created / cancelled movement PDFs, stores the day's figures once per
- * property + date (a rerun replaces the day), then rebuilds the property's
- * running workbook and the one-page branded PDF source.
+ * The day carries around twenty exports (villa-state workbooks, the provisional
+ * booking export, movement PDFs), which is far more than one worker can read in
+ * a single pass. The work is therefore split into two modes:
  *
- * Workbooks are opened one sheet at a time and released before the next file:
- * the daily folder carries several megabytes of exports and reading everything
- * at once exhausts the worker's CPU budget.
+ *   `parse_batch` — reads a handful of not-yet-read files and stores each file's
+ *                   extracted payload on its `report_source_files` row;
+ *   `build`       — once nothing is left to read, assembles the day from the
+ *                   stored payloads, applies anything pasted from the day's
+ *                   email, upserts the day, rebuilds the running workbook and
+ *                   renders the one-page report.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -25,6 +27,7 @@ import {
   buildDailyFigures,
   buildDailyWorkbook,
   parseMovementPdf,
+  parsePastedEmail,
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
@@ -32,6 +35,10 @@ import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
+/** Workbooks read per `parse_batch` call — three fits inside the CPU budget. */
+const WORKBOOKS_PER_BATCH = 3;
+/** PDF text extraction is the most expensive read, so one per call. */
+const PDFS_PER_BATCH = 1;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -40,6 +47,20 @@ const json = (body: unknown, status = 200) =>
   });
 
 type Grid = unknown[][];
+
+/** What one source file contributed to the day, stored on its row. */
+type DailyPayload =
+  | { kind: "house_state"; days: ProtelDay[] }
+  | { kind: "provisional"; months: Record<string, { revenue: number; nights: number }> }
+  | { kind: "created" | "cancelled"; movement: DailyMovement }
+  | { kind: "skipped" };
+
+interface StoredDaily {
+  payload: DailyPayload;
+  notes: string[];
+  ok: boolean;
+  rows: number;
+}
 
 const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
   XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
@@ -59,6 +80,27 @@ const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
     }
   }
   return parts.join(" ");
+};
+
+/** Monthly-only exports are large and hold nothing a single day needs. */
+const isDailyFile = (name: string): boolean =>
+  /\.pdf$/i.test(name) ||
+  /housestate/i.test(name) ||
+  /provisional/i.test(name) ||
+  /(daily|villa|state)/i.test(name);
+
+interface FileRow {
+  id: string;
+  storage_path: string;
+  original_filename: string | null;
+  detected_mapping: Record<string, unknown> | null;
+}
+
+const storedDaily = (row: FileRow): StoredDaily | null => {
+  const value = (row.detected_mapping ?? {})["daily"];
+  if (!value || typeof value !== "object") return null;
+  const entry = value as StoredDaily;
+  return entry.payload && typeof entry.payload === "object" ? entry : null;
 };
 
 Deno.serve(async (req) => {
@@ -84,6 +126,8 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
+    const mode: "parse_batch" | "build" = body?.mode === "build" ? "build" : "parse_batch";
+    const reset = body?.reset === true;
     const actorId = userData.user.id;
 
     const { data: run, error: runError } = await admin
@@ -99,24 +143,197 @@ Deno.serve(async (req) => {
     );
     const asOf = String(run.as_of_date).slice(0, 10);
 
+    const { data: fileRows, error: filesError } = await admin
+      .from("report_source_files")
+      .select("id, storage_path, original_filename, detected_mapping")
+      .eq("run_id", runId)
+      .order("created_at", { ascending: true });
+    if (filesError) return json({ error: filesError.message }, 500);
+    const files = (fileRows ?? []) as FileRow[];
+    if (!files.length) return json({ error: "This run has no uploaded files yet" }, 409);
+
+    /* ── parse a batch ───────────────────────────────────────────── */
+
+    if (mode === "parse_batch") {
+      if (reset) {
+        await admin
+          .from("report_source_files")
+          .update({ detected_mapping: null })
+          .eq("run_id", runId);
+        for (const file of files) file.detected_mapping = null;
+      }
+
+      await admin
+        .from("report_runs")
+        .update({
+          status: "processing",
+          processing_note: "Reading the day's exports",
+          error_message: null,
+        })
+        .eq("id", runId);
+
+      const outstanding = files.filter((file) => !storedDaily(file));
+      let workbooks = 0;
+      let pdfs = 0;
+      let parsed = 0;
+
+      for (const file of outstanding) {
+        const filename = String(file.original_filename ?? "");
+        const isPdf = /\.pdf$/i.test(filename);
+        const heavy = isDailyFile(filename);
+        if (heavy && isPdf && pdfs >= PDFS_PER_BATCH) continue;
+        if (heavy && !isPdf && workbooks >= WORKBOOKS_PER_BATCH) continue;
+
+        const notes: string[] = [];
+        let entry: StoredDaily = { payload: { kind: "skipped" }, notes, ok: true, rows: 0 };
+
+        if (!heavy) {
+          notes.push(`${filename}: monthly export — not used by the daily report`);
+        } else {
+          if (isPdf) pdfs += 1;
+          else workbooks += 1;
+
+          const download = await admin.storage.from(BUCKET).download(file.storage_path);
+          if (download.error || !download.data) {
+            entry = {
+              payload: { kind: "skipped" },
+              notes: [`${filename}: ${download.error?.message ?? "download failed"}`],
+              ok: false,
+              rows: 0,
+            };
+          } else {
+            const buffer = await download.data.arrayBuffer();
+
+            if (isPdf) {
+              try {
+                const movement = parseMovementPdf(await pdfText(buffer));
+                if (movement.kind === "unknown") {
+                  notes.push(`${filename}: not a created/cancelled reservations print — skipped`);
+                } else {
+                  entry = {
+                    payload: { kind: movement.kind, movement: movement.movement },
+                    notes,
+                    ok: true,
+                    rows: movement.movement.count,
+                  };
+                }
+              } catch (error) {
+                entry = {
+                  payload: { kind: "skipped" },
+                  notes: [
+                    `${filename}: unreadable PDF (${error instanceof Error ? error.message : "unknown"})`,
+                  ],
+                  ok: false,
+                  rows: 0,
+                };
+              }
+            } else {
+              // protel writes its OOXML parts in UTF-16; repair before reading.
+              let workbook: XLSX.WorkBook | null = null;
+              try {
+                const repair = await repairWorkbookBuffer(buffer);
+                workbook = XLSX.read(new Uint8Array(repair.buffer), { type: "array" });
+              } catch (error) {
+                entry = {
+                  payload: { kind: "skipped" },
+                  notes: [
+                    `${filename}: unreadable workbook (${error instanceof Error ? error.message : "unknown"})`,
+                  ],
+                  ok: false,
+                  rows: 0,
+                };
+              }
+
+              if (workbook) {
+                // Stop at the first recognised sheet — nothing else is needed.
+                for (const name of workbook.SheetNames) {
+                  const grid = toGrid(workbook, name);
+                  if (isHouseStateGrid(grid)) {
+                    const houseState = parseHouseState(grid, filename);
+                    if (houseState.errors.length) {
+                      entry = {
+                        payload: { kind: "skipped" },
+                        notes: houseState.errors,
+                        ok: false,
+                        rows: 0,
+                      };
+                    } else {
+                      entry = {
+                        payload: { kind: "house_state", days: houseState.days },
+                        notes: houseState.warnings,
+                        ok: true,
+                        rows: houseState.days.length,
+                      };
+                    }
+                    break;
+                  }
+                  if (isProvisionalGrid(grid)) {
+                    const provisional = parseProvisionalGrid(grid, filename);
+                    entry = {
+                      payload: { kind: "provisional", months: provisional.months },
+                      notes: [...provisional.errors, ...provisional.warnings],
+                      ok: true,
+                      rows: provisional.rowsRead,
+                    };
+                    break;
+                  }
+                  grid.length = 0;
+                }
+                workbook = null;
+                if (entry.payload.kind === "skipped" && !entry.notes.length) {
+                  entry.notes.push(`${filename}: no daily grid recognised — skipped`);
+                }
+              }
+            }
+          }
+        }
+
+        await admin
+          .from("report_source_files")
+          .update({
+            detected_mapping: { daily: entry },
+            parsed_ok: entry.ok,
+            row_count: entry.rows,
+            parse_errors: entry.notes.length ? entry.notes : null,
+          })
+          .eq("id", file.id);
+        file.detected_mapping = { daily: entry };
+        parsed += 1;
+      }
+
+      const remaining = files.filter((file) => !storedDaily(file)).length;
+      return json({
+        success: true,
+        mode: "parse_batch",
+        parsed,
+        remaining,
+        total: files.length,
+        read: files.length - remaining,
+      });
+    }
+
+    /* ── build the day ───────────────────────────────────────────── */
+
+    const outstanding = files.filter((file) => !storedDaily(file));
+    if (outstanding.length) {
+      return json(
+        { error: `${outstanding.length} file(s) still need reading`, remaining: outstanding.length },
+        409,
+      );
+    }
+
     const { data: settings } = await admin
       .from("property_report_settings")
       .select("room_count, brand_primary, brand_secondary, report_logo_url, daily_workbook_path")
       .eq("property_id", run.property_id)
       .maybeSingle();
 
-    const { data: files, error: filesError } = await admin
-      .from("report_source_files")
-      .select("id, storage_path, original_filename")
+    const { data: extraInputs } = await admin
+      .from("report_additional_inputs")
+      .select("free_commentary")
       .eq("run_id", runId)
-      .order("created_at", { ascending: true });
-    if (filesError) return json({ error: filesError.message }, 500);
-    if (!files?.length) return json({ error: "This run has no uploaded files yet" }, 409);
-
-    await admin
-      .from("report_runs")
-      .update({ status: "processing", processing_note: "Reading the day's exports", error_message: null })
-      .eq("id", runId);
+      .maybeSingle();
+    const pasted = parsePastedEmail(extraInputs?.free_commentary ?? null);
 
     const days: ProtelDay[] = [];
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
@@ -124,131 +341,29 @@ Deno.serve(async (req) => {
     let cancelled: DailyMovement | null = null;
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
-    /** Monthly-only exports are large and hold nothing the day needs. */
-    const isDailyFile = (name: string): boolean =>
-      /\.pdf$/i.test(name) ||
-      /housestate/i.test(name) ||
-      /provisional/i.test(name) ||
-      /(daily|villa|state)/i.test(name);
-
     for (const file of files) {
-      const filename = String(file.original_filename ?? "");
-      const notes: string[] = [];
-      let ok = false;
-      let rows = 0;
-
-      if (!isDailyFile(filename)) {
-        results.push({
-          id: file.id,
-          ok: true,
-          rows: 0,
-          notes: [`${filename}: monthly export — not used by the daily report`],
-        });
-        continue;
-      }
-
-
-      const download = await admin.storage.from(BUCKET).download(file.storage_path);
-      if (download.error || !download.data) {
-        results.push({
-          id: file.id,
-          ok: false,
-          rows: 0,
-          notes: [`${filename}: ${download.error?.message ?? "download failed"}`],
-        });
-        continue;
-      }
-      const buffer = await download.data.arrayBuffer();
-
-      if (/\.pdf$/i.test(filename)) {
-        try {
-          const parsed = parseMovementPdf(await pdfText(buffer));
-          if (parsed.kind === "created") {
-            created = parsed.movement;
-            ok = true;
-            rows = parsed.movement.count;
-          } else if (parsed.kind === "cancelled") {
-            cancelled = parsed.movement;
-            ok = true;
-            rows = parsed.movement.count;
-          } else {
-            notes.push(`${filename}: not a created/cancelled reservations print — skipped`);
-            ok = true;
-          }
-        } catch (error) {
-          notes.push(
-            `${filename}: unreadable PDF (${error instanceof Error ? error.message : "unknown"})`,
-          );
+      const entry = storedDaily(file)!;
+      results.push({ id: file.id, ok: entry.ok, rows: entry.rows, notes: entry.notes ?? [] });
+      const payload = entry.payload;
+      if (payload.kind === "house_state") {
+        for (const day of payload.days) days.push(day);
+      } else if (payload.kind === "provisional") {
+        for (const [month, bucket] of Object.entries(payload.months ?? {})) {
+          const target = provisionalMonths[month] ?? { revenue: 0, nights: 0 };
+          target.revenue += bucket.revenue;
+          target.nights += bucket.nights;
+          provisionalMonths[month] = target;
         }
-        results.push({ id: file.id, ok, rows, notes });
-        continue;
+      } else if (payload.kind === "created") {
+        created = payload.movement;
+      } else if (payload.kind === "cancelled") {
+        cancelled = payload.movement;
       }
-
-      // protel writes its OOXML parts in UTF-16; repair before reading.
-      let workbook: XLSX.WorkBook | null = null;
-      try {
-        const repair = await repairWorkbookBuffer(buffer);
-        workbook = XLSX.read(new Uint8Array(repair.buffer), { type: "array" });
-      } catch (error) {
-        results.push({
-          id: file.id,
-          ok: false,
-          rows: 0,
-          notes: [
-            `${filename}: unreadable workbook (${error instanceof Error ? error.message : "unknown"})`,
-          ],
-        });
-        continue;
-      }
-
-      // Stop at the first recognised sheet — nothing else in the file is needed.
-      for (const name of workbook.SheetNames) {
-        const grid = toGrid(workbook, name);
-        if (isHouseStateGrid(grid)) {
-          const parsed = parseHouseState(grid, filename);
-          if (parsed.errors.length) {
-            notes.push(...parsed.errors);
-          } else {
-            for (const day of parsed.days) days.push(day);
-            ok = true;
-            rows = parsed.days.length;
-            notes.push(...parsed.warnings);
-          }
-          break;
-        }
-        if (isProvisionalGrid(grid)) {
-          const parsed = parseProvisionalGrid(grid, filename);
-          for (const [month, bucket] of Object.entries(parsed.months)) {
-            const target = provisionalMonths[month] ?? { revenue: 0, nights: 0 };
-            target.revenue += bucket.revenue;
-            target.nights += bucket.nights;
-            provisionalMonths[month] = target;
-          }
-          ok = true;
-          rows = parsed.rowsRead;
-          notes.push(...parsed.errors, ...parsed.warnings);
-          break;
-        }
-        grid.length = 0;
-      }
-      workbook = null;
-
-      if (!ok && !notes.length) notes.push(`${filename}: no daily grid recognised — skipped`);
-      results.push({ id: file.id, ok: ok || notes.length === 1, rows, notes });
     }
 
-    await Promise.all(
-      results.map((result) =>
-        admin
-          .from("report_source_files")
-          .update({
-            parsed_ok: result.ok,
-            row_count: result.rows,
-            parse_errors: result.notes.length ? result.notes : null,
-          })
-          .eq("id", result.id),
-      ),
-    );
+    // The exports always win; the pasted email only fills what they did not carry.
+    if (!created && pasted.created) created = pasted.created;
+    if (!cancelled && pasted.cancelled) cancelled = pasted.cancelled;
 
     const figures = buildDailyFigures({
       days,
@@ -309,6 +424,7 @@ Deno.serve(async (req) => {
         secondary: settings?.brand_secondary ?? "#1A1A2E",
         logoUrl: settings?.report_logo_url ?? null,
       },
+      emailNotes: pasted.note,
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage
@@ -348,7 +464,7 @@ Deno.serve(async (req) => {
       runId,
       "processing_succeeded",
       `Daily Detailed Report built for ${asOf} (${allFigures.length} day(s) in the running workbook)`,
-      { days_parsed: days.length },
+      { days_parsed: days.length, pasted_email: Boolean(pasted.note) },
       actorId,
     );
 
@@ -359,6 +475,7 @@ Deno.serve(async (req) => {
 
     return json({
       success: true,
+      mode: "build",
       run_id: runId,
       date: asOf,
       figures,
