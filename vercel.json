@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/channel-manager/(.*)", "destination": "/ru-embed.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!channel-manager).*)", "destination": "/index.html" }
   ]
 }
