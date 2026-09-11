@@ -35,10 +35,17 @@ import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
-/** Workbooks read per `parse_batch` call — three fits inside the CPU budget. */
-const WORKBOOKS_PER_BATCH = 3;
+/**
+ * Workbooks read per `parse_batch` call. One at a time: the provisional export
+ * is far larger than a House State day and three of them exhaust the worker.
+ */
+const WORKBOOKS_PER_BATCH = 1;
 /** PDF text extraction is the most expensive read, so one per call. */
 const PDFS_PER_BATCH = 1;
+/** A file that exhausts the worker this many times is skipped with a note. */
+const MAX_FILE_ATTEMPTS = 2;
+/** Rows sampled to recognise a sheet before the whole grid is converted. */
+const PROBE_ROWS = 40;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
