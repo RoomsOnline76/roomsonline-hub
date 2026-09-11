@@ -101,7 +101,7 @@ const monthsSince = (month: string | null): number | null => {
 };
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, report_month, status, title, cadence, draft_report_path, page2_enabled, created_at, report_insights(page2, narrative, narrative_final)";
+  "id, property_id, source_type, as_of_date, report_month, status, title, cadence, draft_report_path, page2_enabled, created_at, report_kind, excel_path, report_special_reports(count), report_insights(page2, narrative, narrative_final)";
 
 export function useReportPortfolio() {
   const { properties, isLoading: propertiesLoading, error: propertiesError } = useReportProperties();
