@@ -24,13 +24,20 @@ import {
   parseProvisionalGrid,
 } from "../_shared/cheetaplains/provisional.ts";
 import {
+  isPipelineGrid,
+  parsePipelineGrid,
+  type PipelineRole,
+} from "../_shared/cheetaplains/pipeline.ts";
+import {
   buildDailyFigures,
   buildDailyWorkbook,
+  monthlyOnBooks,
   parseMovementPdf,
   parsePastedEmail,
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
+import { appendDaySheet, daySheetName } from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
 import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
@@ -56,10 +63,19 @@ const json = (body: unknown, status = 200) =>
 type Grid = unknown[][];
 
 /** What one source file contributed to the day, stored on its row. */
+type PipelineTotals = {
+  count: number;
+  value: number;
+  months: Record<string, { count: number; value: number }>;
+};
+
 type DailyPayload =
   | { kind: "house_state"; days: ProtelDay[] }
   | { kind: "provisional"; months: Record<string, { revenue: number; nights: number }> }
+  | { kind: "pipeline"; roles: Partial<Record<PipelineRole, PipelineTotals>> }
   | { kind: "created" | "cancelled"; movement: DailyMovement }
+  /** The running Daily Detailed workbook, kept as the base for the day's sheet. */
+  | { kind: "running_workbook" }
   | { kind: "skipped" };
 
 interface StoredDaily {
@@ -98,6 +114,14 @@ const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
   }
   return parts.join(" ");
 };
+
+/**
+ * The running Daily Detailed workbook itself. It is never read as a source —
+ * it is the base the day's new sheet is added to, so it is recognised by name
+ * and left alone.
+ */
+const isRunningWorkbook = (name: string): boolean =>
+  /daily[\s_-]*detailed[\s_-]*report/i.test(name) && /\.xlsx$/i.test(name);
 
 /** Monthly-only exports are large and hold nothing a single day needs. */
 const isDailyFile = (name: string): boolean =>
@@ -197,14 +221,22 @@ Deno.serve(async (req) => {
       for (const file of outstanding) {
         const filename = String(file.original_filename ?? "");
         const isPdf = /\.pdf$/i.test(filename);
-        const heavy = isDailyFile(filename);
+        const running = isRunningWorkbook(filename);
+        const heavy = !running && isDailyFile(filename);
         if (heavy && isPdf && pdfs >= PDFS_PER_BATCH) continue;
         if (heavy && !isPdf && workbooks >= WORKBOOKS_PER_BATCH) continue;
 
         const notes: string[] = [];
         let entry: StoredDaily = { payload: { kind: "skipped" }, notes, ok: true, rows: 0 };
 
-        if (!heavy) {
+        if (running) {
+          entry = {
+            payload: { kind: "running_workbook" },
+            notes: [`${filename}: the running workbook — the day's sheet is added to it`],
+            ok: true,
+            rows: 0,
+          };
+        } else if (!heavy) {
           notes.push(`${filename}: monthly export — not used by the daily report`);
         } else {
           if (isPdf) pdfs += 1;
@@ -298,8 +330,40 @@ Deno.serve(async (req) => {
                   // sheet is converted in full.
                   const probe = toGrid(workbook, name, PROBE_ROWS);
                   const isHouseState = isHouseStateGrid(probe);
-                  const isProvisional = !isHouseState && isProvisionalGrid(probe);
+                  const isPipeline = !isHouseState && isPipelineGrid(probe);
+                  const isProvisional =
+                    !isHouseState && !isPipeline && isProvisionalGrid(probe);
                   probe.length = 0;
+                  if (isPipeline) {
+                    // The tracker keeps enquiries, confirmations and losses on
+                    // separate sheets — all three are read in one pass.
+                    const roles: Partial<Record<PipelineRole, PipelineTotals>> = {};
+                    const pipelineNotes: string[] = [];
+                    let rows = 0;
+                    for (const sheetName of workbook.SheetNames) {
+                      const sheetGrid = toGrid(workbook, sheetName);
+                      const result = parsePipelineGrid(sheetGrid, sheetName, filename);
+                      sheetGrid.length = 0;
+                      if (!result.rowsRead) {
+                        pipelineNotes.push(...result.warnings);
+                        continue;
+                      }
+                      const months: Record<string, { count: number; value: number }> = {};
+                      for (const [month, bucket] of Object.entries(result.months)) {
+                        months[month] = { count: bucket.count, value: bucket.value };
+                      }
+                      roles[result.role] = { count: result.count, value: result.value, months };
+                      rows += result.rowsRead;
+                      pipelineNotes.push(...result.warnings);
+                    }
+                    entry = {
+                      payload: { kind: "pipeline", roles },
+                      notes: pipelineNotes,
+                      ok: rows > 0,
+                      rows,
+                    };
+                    break;
+                  }
                   if (!isHouseState && !isProvisional) continue;
                   const grid = toGrid(workbook, name);
                   if (isHouseState) {
@@ -391,8 +455,10 @@ Deno.serve(async (req) => {
 
     const days: ProtelDay[] = [];
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
+    const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
     let created: DailyMovement | null = null;
     let cancelled: DailyMovement | null = null;
+    let uploadedWorkbookPath: string | null = null;
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
     for (const file of files) {
@@ -408,11 +474,24 @@ Deno.serve(async (req) => {
           target.nights += bucket.nights;
           provisionalMonths[month] = target;
         }
+      } else if (payload.kind === "pipeline") {
+        for (const [role, totals] of Object.entries(payload.roles ?? {})) {
+          if (totals) pipeline[role as PipelineRole] = totals;
+        }
+      } else if (payload.kind === "running_workbook") {
+        uploadedWorkbookPath = file.storage_path;
       } else if (payload.kind === "created") {
         created = payload.movement;
       } else if (payload.kind === "cancelled") {
         cancelled = payload.movement;
       }
+    }
+
+    // Enquiries: the tracker's provisional sheet when the run carries it,
+    // otherwise whatever a reservation-style provisional export gave.
+    for (const [month, bucket] of Object.entries(pipeline.provisional?.months ?? {})) {
+      if (provisionalMonths[month]) continue;
+      provisionalMonths[month] = { revenue: bucket.value, nights: 0 };
     }
 
     // The exports always win; the pasted email only fills what they did not carry.
@@ -461,9 +540,61 @@ Deno.serve(async (req) => {
       .map((row) => row.figures as unknown as DailyFigures)
       .filter((row) => row && typeof row.date === "string");
 
+    /* ── the running workbook ────────────────────────────────────── */
+
+    // The day is added to the workbook the revenue team keeps: a copy of the
+    // newest day sheet, with yesterday's figures moved into the previous-day
+    // columns and this day's provisional business written in. An uploaded
+    // workbook on the run replaces whatever was stored before.
     const primary = (settings?.brand_primary ?? "#1A1A2E").replace("#", "");
-    const workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
     const workbookPath = `${run.property_id}/daily/daily-detailed-report.xlsx`;
+    const workbookNotes: string[] = [];
+    let workbookBytes: Uint8Array | null = null;
+    let sheetName = daySheetName(asOf);
+
+    const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
+    if (basePath) {
+      const base = await admin.storage.from(BUCKET).download(basePath);
+      if (base.error || !base.data) {
+        workbookNotes.push(
+          `The running workbook could not be opened (${base.error?.message ?? "download failed"})`,
+        );
+      } else {
+        const provisionalByMonth: Record<string, number> = {};
+        for (const [month, figuresForMonth] of Object.entries(
+          monthlyOnBooks(days, settings?.room_count ?? null),
+        )) {
+          provisionalByMonth[month] = figuresForMonth.revenue;
+        }
+        try {
+          const appended = await appendDaySheet(await base.data.arrayBuffer(), asOf, {
+            provisionalByMonth,
+          });
+          workbookBytes = appended.bytes;
+          sheetName = appended.sheetName;
+          workbookNotes.push(
+            `${appended.sheetName} ${appended.replaced ? "rebuilt" : "added"} from ${appended.templateSheet}` +
+              ` — ${appended.monthsWritten.length} month(s) updated from the day's exports`,
+            ...appended.notes,
+          );
+        } catch (error) {
+          workbookNotes.push(
+            `The day's sheet could not be added (${error instanceof Error ? error.message : "unknown"})`,
+          );
+        }
+      }
+    } else {
+      workbookNotes.push(
+        "No running workbook is on file yet — upload Daily Detailed Report 2026.xlsx with the day's exports to keep the team's format",
+      );
+    }
+
+    if (!workbookBytes) {
+      // Nothing to append to: fall back to the plain day-per-row workbook so the
+      // run still produces a spreadsheet.
+      workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
+    }
+
     const workbookUpload = await admin.storage.from(BUCKET).upload(workbookPath, workbookBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       upsert: true,
@@ -517,8 +648,13 @@ Deno.serve(async (req) => {
       admin,
       runId,
       "processing_succeeded",
-      `Daily Detailed Report built for ${asOf} (${allFigures.length} day(s) in the running workbook)`,
-      { days_parsed: days.length, pasted_email: Boolean(pasted.note) },
+      `Daily Detailed Report built for ${asOf} — sheet ${sheetName}. ${workbookNotes.join(" · ")}`,
+      {
+        days_parsed: days.length,
+        pasted_email: Boolean(pasted.note),
+        sheet: sheetName,
+        workbook_notes: workbookNotes,
+      },
       actorId,
     );
 
@@ -534,6 +670,9 @@ Deno.serve(async (req) => {
       date: asOf,
       figures,
       days_in_workbook: allFigures.length,
+      sheet: sheetName,
+      workbook_notes: workbookNotes,
+      pipeline,
       files: results,
       excel_url: workbookSigned.data?.signedUrl ?? null,
       excel_path: workbookPath,
