@@ -89,7 +89,10 @@ export default function ReportsRunReview() {
     build: buildDaily,
     isBuilding: isDailyBusy,
     result: dailyResult,
+    progress: dailyProgress,
     storedDay,
+    emailText: dailyEmailText,
+    saveEmailText: onSaveDailyEmailText,
   } = useDailyDetailedReport(runId, run?.propertyId, run?.asOfDate);
   const dailyFigures = dailyResult?.figures ?? storedDay;
   const stages = useMemo(() => stagesForKind(run?.reportKind), [run?.reportKind]);
@@ -493,6 +496,9 @@ export default function ReportsRunReview() {
     onDailyBuild: () => void handleDailyBuild(),
     isDailyBusy,
     dailyResult,
+    dailyProgress,
+    dailyEmailText,
+    onSaveDailyEmailText,
   };
 
 
