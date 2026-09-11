@@ -1,5 +1,11 @@
 # Roadmap — Leopard full-cycle channel test (2026-08-31)
 
+## Channel Manager connection wizard (2026-09-11)
+- [x] Move the White Label client to the physical `/channel-manager/` document
+- [x] Remove the root base tag and vendor-DOM inspection
+- [x] Preserve popup/OAuth sandbox permissions and isolate preview routing
+- [ ] Verify Booking.com or Airbnb opens the vendor wizard in an authenticated browser session
+
 - [x] Step A onboarding uses distribution email `ru-two@polka.co.za` (OwnerID 742640, verified child keys)
 - [x] Re-activate Leopard unit row so readiness gate passes (sterilize left it inactive)
 - [x] Step B — PASSED. Root cause was not the schema: Leopard's stored listing 5973280 had been archived at the channel, and an archived listing id can never be updated or reused — RU answers status 18 "Property with given ID does not exist". Push now detects that, purges the dead id from the owner listing snapshots and re-sends once as a create. Leopard is live as NEW listing **5974995** under ru-two@polka.co.za (OwnerID 742640), 1/1 unit verified, prices 366/366 days, availability 366/366. Inline `<AdditionalFees>` re-enabled (`RU_INLINE_FEES_DISABLED = false`).
