@@ -22,6 +22,8 @@ export interface DailyReportOptions {
   branding: DailyReportBranding;
   /** Optional reviewer note printed under the movement block. */
   note?: string | null;
+  /** Text pasted from the day's email, printed verbatim when present. */
+  emailNotes?: string | null;
 }
 
 const esc = (value: string): string =>
@@ -174,6 +176,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   table.grid td { padding: 2.2mm 3mm; border-bottom: 1px solid var(--line); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
   .note { margin-top: 5mm; font-size: 9pt; color: var(--muted); }
+  .email { font-size: 9pt; white-space: pre-wrap; border-left: 2px solid var(--primary); padding-left: 3mm; }
   .footer {
     margin-top: auto; padding-top: 6mm; border-top: 1px solid var(--line);
     display: flex; align-items: flex-end; justify-content: space-between;
@@ -198,6 +201,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
 
   <h2>Movement &amp; enquiries</h2>
   ${movementTable}
+  ${options.emailNotes ? `<h2>From the day's email</h2><div class="email">${esc(options.emailNotes)}</div>` : ""}
   ${options.note ? `<div class="note">${esc(options.note)}</div>` : ""}
   <div class="note">Figures without a source in the day's exports print as a dash. Enquiries are provisional business and are not counted in revenue on the books.</div>
 
