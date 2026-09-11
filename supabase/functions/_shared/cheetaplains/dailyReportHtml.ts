@@ -350,8 +350,10 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
     ${branding.logoUrl ? `<img src="${esc(branding.logoUrl)}" alt="${esc(propertyName)}" />` : ""}
   </div>
 </section>
+${extraPages}
 </body>
 </html>`;
+
 
   return { html, documentTitle };
 }
