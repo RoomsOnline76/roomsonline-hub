@@ -71,9 +71,11 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
           <div className="space-y-1">
             <p className="text-sm font-medium">Build the day</p>
             <p className="text-sm text-muted-foreground">
-              {result?.daysInWorkbook
-                ? `${result.daysInWorkbook} day(s) now in this property's running workbook.`
-                : "Adds this day to the running workbook and rebuilds the one-page report."}
+              {ctx.isDailyBusy && ctx.dailyProgress
+                ? `Reading the day's files — ${ctx.dailyProgress.read} of ${ctx.dailyProgress.total}…`
+                : result?.daysInWorkbook
+                  ? `${result.daysInWorkbook} day(s) now in this property's running workbook.`
+                  : "Adds this day to the running workbook and rebuilds the one-page report."}
             </p>
           </div>
           <div className="flex items-center gap-2">
