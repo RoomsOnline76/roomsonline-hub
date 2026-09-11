@@ -540,9 +540,61 @@ Deno.serve(async (req) => {
       .map((row) => row.figures as unknown as DailyFigures)
       .filter((row) => row && typeof row.date === "string");
 
+    /* ── the running workbook ────────────────────────────────────── */
+
+    // The day is added to the workbook the revenue team keeps: a copy of the
+    // newest day sheet, with yesterday's figures moved into the previous-day
+    // columns and this day's provisional business written in. An uploaded
+    // workbook on the run replaces whatever was stored before.
     const primary = (settings?.brand_primary ?? "#1A1A2E").replace("#", "");
-    const workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
     const workbookPath = `${run.property_id}/daily/daily-detailed-report.xlsx`;
+    const workbookNotes: string[] = [];
+    let workbookBytes: Uint8Array | null = null;
+    let sheetName = daySheetName(asOf);
+
+    const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
+    if (basePath) {
+      const base = await admin.storage.from(BUCKET).download(basePath);
+      if (base.error || !base.data) {
+        workbookNotes.push(
+          `The running workbook could not be opened (${base.error?.message ?? "download failed"})`,
+        );
+      } else {
+        const provisionalByMonth: Record<string, number> = {};
+        for (const [month, figuresForMonth] of Object.entries(
+          monthlyOnBooks(days, settings?.room_count ?? null),
+        )) {
+          provisionalByMonth[month] = figuresForMonth.revenue;
+        }
+        try {
+          const appended = await appendDaySheet(await base.data.arrayBuffer(), asOf, {
+            provisionalByMonth,
+          });
+          workbookBytes = appended.bytes;
+          sheetName = appended.sheetName;
+          workbookNotes.push(
+            `${appended.sheetName} ${appended.replaced ? "rebuilt" : "added"} from ${appended.templateSheet}` +
+              ` — ${appended.monthsWritten.length} month(s) updated from the day's exports`,
+            ...appended.notes,
+          );
+        } catch (error) {
+          workbookNotes.push(
+            `The day's sheet could not be added (${error instanceof Error ? error.message : "unknown"})`,
+          );
+        }
+      }
+    } else {
+      workbookNotes.push(
+        "No running workbook is on file yet — upload Daily Detailed Report 2026.xlsx with the day's exports to keep the team's format",
+      );
+    }
+
+    if (!workbookBytes) {
+      // Nothing to append to: fall back to the plain day-per-row workbook so the
+      // run still produces a spreadsheet.
+      workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
+    }
+
     const workbookUpload = await admin.storage.from(BUCKET).upload(workbookPath, workbookBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       upsert: true,
