@@ -34,6 +34,7 @@ import {
   nextStage,
   previousStage,
   resumeStage,
+  stagesForKind,
   STAGE_META,
   type RunBuildStage,
 } from "@/lib/runBuildStages";
@@ -48,6 +49,10 @@ import { StageMedia } from "./run-builder/StageMedia";
 import { StageOrganize } from "./run-builder/StageOrganize";
 import { StageInsights } from "./run-builder/StageInsights";
 import { StageBuild } from "./run-builder/StageBuild";
+import { StageDailyUpload } from "./run-builder/StageDailyUpload";
+import { StageDailyReview } from "./run-builder/StageDailyReview";
+import { StageDailyBuild } from "./run-builder/StageDailyBuild";
+import { useDailyDetailedReport } from "@/hooks/useDailyDetailedReport";
 import type { RunBuilderContext } from "./run-builder/types";
 
 const formatDate = (iso: string): string =>
@@ -79,6 +84,15 @@ export default function ReportsRunReview() {
   } = useReportDraft(runId);
   const { total: mediaTotal } = useReportMedia(runId, run?.sourceType);
   const { insights } = useReportInsights(runId);
+  const isDaily = run?.reportKind === "daily_detailed";
+  const {
+    build: buildDaily,
+    isBuilding: isDailyBusy,
+    result: dailyResult,
+    storedDay,
+  } = useDailyDetailedReport(runId, run?.propertyId, run?.asOfDate);
+  const dailyFigures = dailyResult?.figures ?? storedDay;
+  const stages = useMemo(() => stagesForKind(run?.reportKind), [run?.reportKind]);
 
   const [stage, setStage] = useState<RunBuildStage | null>(null);
   const [savingCadence, setSavingCadence] = useState(false);
@@ -128,15 +142,16 @@ export default function ReportsRunReview() {
         hasSnapshot: Boolean(snapshot),
         hasMedia: mediaTotal > 0,
         insightsReviewed: Boolean(insights?.generatedAt),
+        hasDailyDay: Boolean(dailyFigures),
       }),
-    [run, snapshot, mediaTotal, insights, stlyNeedsWorkbook],
+    [run, snapshot, mediaTotal, insights, stlyNeedsWorkbook, dailyFigures],
   );
 
   /** Land on the remembered stage the first time the run loads. */
   useEffect(() => {
     if (!run || stage) return;
-    setStage(resumeStage(run.buildStage, completion));
-  }, [run, stage, completion]);
+    setStage(resumeStage(run.buildStage, completion, stages));
+  }, [run, stage, completion, stages]);
 
   /**
    * Everything downstream sees the review month plus six ahead — every one of
@@ -260,6 +275,16 @@ export default function ReportsRunReview() {
     await refresh();
   }, [process, refresh]);
 
+  const handleDailyBuild = useCallback(async () => {
+    const result = await buildDaily();
+    if (result.ok) {
+      toast.success(`Day built (${result.daysInWorkbook ?? 0} day(s) in the workbook)`);
+    } else {
+      toast.error("Could not build the day", { description: result.message });
+    }
+    await refetch();
+  }, [buildDaily, refetch]);
+
   const handleDraft = useCallback(async () => {
     const result = await generateDraft();
     if (result.ok && result.url) {
@@ -277,7 +302,9 @@ export default function ReportsRunReview() {
         runId: run.id,
         propertyId: run.propertyId,
         files: pending,
-        acceptedExtensions: adapter.acceptedFileTypes,
+        acceptedExtensions: isDaily
+          ? [...adapter.acceptedFileTypes, ".pdf"]
+          : adapter.acceptedFileTypes,
         existingHashes: run.files
           .filter((f) => f.fileRole !== "prior_report")
           .map((f) => f.fileHash ?? "")
@@ -303,11 +330,11 @@ export default function ReportsRunReview() {
       setPending([]);
       setFileStates({});
       await refetch();
-      if (result.uploaded) await handleProcess();
+      if (result.uploaded && !isDaily) await handleProcess();
     } finally {
       setUploadBusy(false);
     }
-  }, [run, pending, refetch, adapter, handleProcess]);
+  }, [run, pending, refetch, adapter, handleProcess, isDaily]);
 
   const handleDownload = useCallback(async (storagePath: string) => {
     const url = await getSourceFileUrl(storagePath);
@@ -413,10 +440,10 @@ export default function ReportsRunReview() {
     );
   }
 
-  const currentStage: RunBuildStage = stage ?? "parse";
+  const currentStage: RunBuildStage = stage ?? stages[0];
   const meta = STAGE_META[currentStage];
-  const back = previousStage(currentStage);
-  const forward = nextStage(currentStage);
+  const back = previousStage(currentStage, stages);
+  const forward = nextStage(currentStage, stages);
 
   const ctx: RunBuilderContext = {
     run,
@@ -462,6 +489,10 @@ export default function ReportsRunReview() {
     onDeclinePrior: (value) => void handleDeclinePrior(value),
     isSavingPriorDecline: setPriorReportDeclined.isPending,
     ownerSlidesOffered,
+    dailyFigures,
+    onDailyBuild: () => void handleDailyBuild(),
+    isDailyBusy,
+    dailyResult,
   };
 
 
@@ -476,6 +507,9 @@ export default function ReportsRunReview() {
     organize: <StageOrganize ctx={ctx} />,
     insights: <StageInsights ctx={ctx} />,
     build: <StageBuild ctx={ctx} />,
+    daily_upload: <StageDailyUpload ctx={ctx} />,
+    daily_review: <StageDailyReview ctx={ctx} />,
+    daily_build: <StageDailyBuild ctx={ctx} />,
   }[currentStage];
 
   return (
@@ -512,6 +546,11 @@ export default function ReportsRunReview() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {isDaily ? (
+            <Badge variant="outline" className="font-normal">
+              Daily Detailed Report
+            </Badge>
+          ) : (
           <div className="flex overflow-hidden rounded-md border">
             {(["monthly", "bimonthly"] as ReportCadence[]).map((option) => (
               <button
@@ -530,6 +569,7 @@ export default function ReportsRunReview() {
               </button>
             ))}
           </div>
+          )}
           <RunStatusPill status={run.status} />
           <Badge variant="secondary" className="font-normal">
             {adapter.label}
@@ -563,7 +603,12 @@ export default function ReportsRunReview() {
         </Alert>
       )}
 
-      <StageRail stage={currentStage} completion={completion} onSelect={goToStage} />
+      <StageRail
+        stage={currentStage}
+        completion={completion}
+        onSelect={goToStage}
+        stages={stages}
+      />
 
       <div className="space-y-1">
         <h2 className="text-lg font-medium">

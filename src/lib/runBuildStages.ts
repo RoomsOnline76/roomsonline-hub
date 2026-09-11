@@ -14,7 +14,10 @@ export type RunBuildStage =
   | "media"
   | "organize"
   | "insights"
-  | "build";
+  | "build"
+  | "daily_upload"
+  | "daily_review"
+  | "daily_build";
 
 export const RUN_BUILD_STAGES: RunBuildStage[] = [
   "parse",
@@ -28,6 +31,18 @@ export const RUN_BUILD_STAGES: RunBuildStage[] = [
   "insights",
   "build",
 ];
+
+/** The Daily Detailed Report is a short three-screen build. */
+export const DAILY_BUILD_STAGES: RunBuildStage[] = [
+  "daily_upload",
+  "daily_review",
+  "daily_build",
+];
+
+/** Which stage list a run walks, from its report kind. */
+export const stagesForKind = (reportKind?: string | null): RunBuildStage[] =>
+  reportKind === "daily_detailed" ? DAILY_BUILD_STAGES : RUN_BUILD_STAGES;
+
 
 interface StageMeta {
   letter: string;
@@ -99,10 +114,29 @@ export const STAGE_META: Record<RunBuildStage, StageMeta> = {
     blurb: "Process the run, review the numbers and take the downloads.",
     optional: false,
   },
+  daily_upload: {
+    letter: "A",
+    label: "Day's files",
+    blurb: "Drop the day's villa state, provisional bookings and movement prints.",
+    optional: false,
+  },
+  daily_review: {
+    letter: "B",
+    label: "Review the day",
+    blurb: "Check the day's figures before they are added to the running workbook.",
+    optional: false,
+  },
+  daily_build: {
+    letter: "C",
+    label: "Build & download",
+    blurb: "Add the day to the workbook and take both the workbook and the report.",
+    optional: false,
+  },
 };
 
 export const isRunBuildStage = (value: unknown): value is RunBuildStage =>
-  typeof value === "string" && (RUN_BUILD_STAGES as string[]).includes(value);
+  typeof value === "string" &&
+  ([...RUN_BUILD_STAGES, ...DAILY_BUILD_STAGES] as string[]).includes(value);
 
 export interface StageStateInput {
   /** Source (non-prior) files attached to the run. */
@@ -125,6 +159,8 @@ export interface StageStateInput {
   hasMedia: boolean;
   /** TOBI insights exist and the reviewer has been through them. */
   insightsReviewed: boolean;
+  /** Daily Detailed Report: the day's figures have been built. */
+  hasDailyDay?: boolean;
 }
 
 export type StageCompletion = Record<RunBuildStage, boolean>;
@@ -135,6 +171,7 @@ export function deriveStageCompletion(input: StageStateInput): StageCompletion {
     input.sourceFiles.length > 0 && input.sourceFiles.every((file) => file.parsedOk === true);
   const priorSettled =
     input.priorFiles.length > 0 || (input.priorDeclined && !input.stlyRequired);
+  const dailyDone = Boolean(input.hasDailyDay);
 
   return {
     parse: parsedAll,
@@ -147,6 +184,9 @@ export function deriveStageCompletion(input: StageStateInput): StageCompletion {
     organize: input.hasMedia,
     insights: input.insightsReviewed,
     build: input.hasSnapshot,
+    daily_upload: input.sourceFiles.length > 0,
+    daily_review: dailyDone,
+    daily_build: dailyDone,
   };
 }
 
@@ -154,22 +194,28 @@ export function deriveStageCompletion(input: StageStateInput): StageCompletion {
 export function resumeStage(
   stored: unknown,
   completion: StageCompletion,
+  stages: RunBuildStage[] = RUN_BUILD_STAGES,
 ): RunBuildStage {
-  if (isRunBuildStage(stored)) return stored;
-  const firstOpen = RUN_BUILD_STAGES.find(
+  if (isRunBuildStage(stored) && stages.includes(stored)) return stored;
+  const firstOpen = stages.find(
     (stage) => !completion[stage] && !STAGE_META[stage].optional,
   );
-  return firstOpen ?? "build";
+  return firstOpen ?? stages[stages.length - 1];
 }
 
-export const nextStage = (stage: RunBuildStage): RunBuildStage | null => {
-  const index = RUN_BUILD_STAGES.indexOf(stage);
-  return index >= 0 && index < RUN_BUILD_STAGES.length - 1
-    ? RUN_BUILD_STAGES[index + 1]
-    : null;
+export const nextStage = (
+  stage: RunBuildStage,
+  stages: RunBuildStage[] = RUN_BUILD_STAGES,
+): RunBuildStage | null => {
+  const index = stages.indexOf(stage);
+  return index >= 0 && index < stages.length - 1 ? stages[index + 1] : null;
 };
 
-export const previousStage = (stage: RunBuildStage): RunBuildStage | null => {
-  const index = RUN_BUILD_STAGES.indexOf(stage);
-  return index > 0 ? RUN_BUILD_STAGES[index - 1] : null;
+export const previousStage = (
+  stage: RunBuildStage,
+  stages: RunBuildStage[] = RUN_BUILD_STAGES,
+): RunBuildStage | null => {
+  const index = stages.indexOf(stage);
+  return index > 0 ? stages[index - 1] : null;
 };
+
