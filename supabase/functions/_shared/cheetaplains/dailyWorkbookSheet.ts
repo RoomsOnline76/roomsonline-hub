@@ -140,12 +140,12 @@ export function patchDaySheet(xml: string, patch: DaySheetPatch): DaySheetPatchR
       const byColumn = new Map(cells.map((cell) => [cell.column, cell]));
 
       const monthCell = byColumn.get("A");
-      const month = monthCell ? serialToMonth(numberOf(monthCell) ?? NaN) : null;
+      const month = serialToMonth(numberOf(monthCell) ?? NaN);
       if (month) monthsSeen.push(month);
 
-      const previousBob = numberOf(byColumn.get("B") ?? ({} as Cell));
-      const previousOcc = numberOf(byColumn.get("D") ?? ({} as Cell));
-      const previousProv = numberOf(byColumn.get("I") ?? ({} as Cell));
+      const previousBob = numberOf(byColumn.get("B"));
+      const previousOcc = numberOf(byColumn.get("D"));
+      const previousProv = numberOf(byColumn.get("I"));
 
       const provisional = month ? patch.provisionalByMonth[month] : undefined;
       const confirmed = month ? patch.confirmedByMonth?.[month] : undefined;
