@@ -103,7 +103,7 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
           <div className="space-y-1">
             <p className="text-sm font-medium">Downloads</p>
             <p className="text-sm text-muted-foreground">
-              {result?.excelUrl
+              {excelUrl
                 ? "The running workbook with this day added, and the day's report to print or save as PDF."
                 : ready
                   ? "Press Build to refresh both files."
@@ -113,15 +113,15 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              disabled={!result?.excelUrl}
+              disabled={!excelUrl}
               onClick={() => {
-                if (result?.excelUrl) void downloadFile(result.excelUrl);
+                if (excelUrl) void downloadFile(excelUrl);
               }}
             >
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Daily workbook (.xlsx)
             </Button>
-            <Button disabled={!result?.reportUrl} onClick={() => void openReport()}>
+            <Button disabled={!reportUrl} onClick={() => void openReport()}>
               <FileText className="mr-2 h-4 w-4" />
               Daily report (PDF)
             </Button>
