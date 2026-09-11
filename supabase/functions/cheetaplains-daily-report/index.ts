@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
                     }
                     break;
                   }
-                  if (isProvisionalGrid(grid)) {
+                  if (isProvisional) {
                     const provisional = parseProvisionalGrid(grid, filename);
                     entry = {
                       payload: { kind: "provisional", months: provisional.months },
