@@ -75,10 +75,130 @@ const stat = (label: string, value: string, hint = ""): string =>
 const row = (cells: string[], head = false): string =>
   `<tr>${cells.map((cell) => `<${head ? "th" : "td"}>${cell}</${head ? "th" : "td"}>`).join("")}</tr>`;
 
+/** Short money for chart axes and dense grids: R1.2m, R840k. */
+const shortRand = (value: number | null): string => {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `R${(value / 1_000_000).toFixed(1)}m`;
+  if (abs >= 1_000) return `R${Math.round(value / 1_000)}k`;
+  return `R${Math.round(value)}`;
+};
+
+const variance = (row: DailyGridRow): number | null =>
+  row.bob === null || row.budget === null ? null : row.bob - row.budget;
+
+/** One financial year's month rows, quarters and total, as the workbook has it. */
+const yearTable = (grid: DailyYearGrid): string => {
+  const body = grid.rows
+    .map((entry) => {
+      const cls = entry.kind === "month" ? "" : ` class="sum"`;
+      const cells = [
+        esc(entry.label),
+        shortRand(entry.bob),
+        pct(entry.occupancy),
+        shortRand(entry.budget),
+        shortRand(variance(entry)),
+        shortRand(entry.stly),
+        pct(entry.stlyOccupancy),
+        shortRand(entry.lastYear),
+        pct(entry.lastYearOccupancy),
+      ];
+      return `<tr${cls}>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
+    })
+    .join("");
+  return `<table class="grid dense">
+  ${row(["Month", "On the books", "Occ %", "Budget", "Vs budget", "STLY", "Occ STLY", "Last year", "Occ LY"], true)}
+  ${body}
+</table>`;
+};
+
+interface ChartSeries {
+  name: string;
+  colour: string;
+  values: (number | null)[];
+}
+
+/**
+ * The workbook's own graph for one financial year — revenue on the books
+ * against budget and against the same time last year — as an inline SVG so the
+ * page prints without fetching anything.
+ */
+const yearChart = (grid: DailyYearGrid, primary: string): string => {
+  const months = grid.rows.filter((entry) => entry.kind === "month");
+  if (months.length === 0) return "";
+  const series: ChartSeries[] = [
+    { name: "On the books", colour: primary, values: months.map((entry) => entry.bob) },
+    { name: "Budget", colour: "#9CA3AF", values: months.map((entry) => entry.budget) },
+    { name: "Same time last year", colour: "#0EA5A4", values: months.map((entry) => entry.stly) },
+  ];
+
+  const width = 780;
+  const height = 250;
+  const left = 62;
+  const right = 12;
+  const top = 14;
+  const bottom = 34;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const peak = Math.max(
+    1,
+    ...series.flatMap((line) => line.values.map((value) => (value === null ? 0 : value))),
+  );
+  const step = months.length > 1 ? plotWidth / (months.length - 1) : 0;
+  const x = (index: number): number => left + index * step;
+  const y = (value: number): number => top + plotHeight - (value / peak) * plotHeight;
+
+  const ticks = [0, 0.25, 0.5, 0.75, 1]
+    .map((fraction) => {
+      const value = peak * fraction;
+      const at = y(value);
+      return `<line x1="${left}" x2="${width - right}" y1="${at}" y2="${at}" stroke="#E5E7EB" />` +
+        `<text x="${left - 6}" y="${at + 3}" text-anchor="end" class="axis">${shortRand(value)}</text>`;
+    })
+    .join("");
+
+  const labels = months
+    .map((entry, index) => {
+      const short = entry.label.split(" ")[0];
+      return `<text x="${x(index)}" y="${height - 12}" text-anchor="middle" class="axis">${esc(short)}</text>`;
+    })
+    .join("");
+
+  const lines = series
+    .map((line) => {
+      const points = line.values
+        .map((value, index) => (value === null ? null : `${x(index)},${y(value)}`))
+        .filter((point): point is string => point !== null)
+        .join(" ");
+      const dots = line.values
+        .map((value, index) =>
+          value === null ? "" : `<circle cx="${x(index)}" cy="${y(value)}" r="2.4" fill="${line.colour}" />`,
+        )
+        .join("");
+      return `<polyline points="${points}" fill="none" stroke="${line.colour}" stroke-width="2" />${dots}`;
+    })
+    .join("");
+
+  const legend = series
+    .map(
+      (line) =>
+        `<span class="key"><i style="background:${line.colour}"></i>${esc(line.name)}</span>`,
+    )
+    .join("");
+
+  return `<div class="chart">
+  <div class="chart-head"><strong>${esc(grid.label)}</strong>${legend}</div>
+  <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Revenue on the books against budget and last year for ${esc(grid.label)}">
+    ${ticks}${lines}${labels}
+  </svg>
+</div>`;
+};
+
 export interface DailyReportResult {
   html: string;
   documentTitle: string;
 }
+
 
 export function buildDailyReportHtml(options: DailyReportOptions): DailyReportResult {
   const { propertyName, figures, branding } = options;
