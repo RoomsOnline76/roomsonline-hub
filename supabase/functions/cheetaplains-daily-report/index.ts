@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, report_kind, notes, properties(name)")
+      .select("id, property_id, as_of_date, report_kind, properties(name)")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -124,11 +124,29 @@ Deno.serve(async (req) => {
     let cancelled: DailyMovement | null = null;
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
+    /** Monthly-only exports are large and hold nothing the day needs. */
+    const isDailyFile = (name: string): boolean =>
+      /\.pdf$/i.test(name) ||
+      /housestate/i.test(name) ||
+      /provisional/i.test(name) ||
+      /(daily|villa|state)/i.test(name);
+
     for (const file of files) {
       const filename = String(file.original_filename ?? "");
       const notes: string[] = [];
       let ok = false;
       let rows = 0;
+
+      if (!isDailyFile(filename)) {
+        results.push({
+          id: file.id,
+          ok: true,
+          rows: 0,
+          notes: [`${filename}: monthly export — not used by the daily report`],
+        });
+        continue;
+      }
+
 
       const download = await admin.storage.from(BUCKET).download(file.storage_path);
       if (download.error || !download.data) {
@@ -291,7 +309,6 @@ Deno.serve(async (req) => {
         secondary: settings?.brand_secondary ?? "#1A1A2E",
         logoUrl: settings?.report_logo_url ?? null,
       },
-      note: typeof run.notes === "string" && run.notes.trim() ? run.notes.trim() : null,
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage
@@ -321,7 +338,7 @@ Deno.serve(async (req) => {
         error_message: null,
         excel_path: workbookPath,
         excel_generated_at: new Date().toISOString(),
-        draft_path: htmlPath,
+        draft_report_path: htmlPath,
         draft_generated_at: new Date().toISOString(),
       })
       .eq("id", runId);
