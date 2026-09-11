@@ -221,14 +221,22 @@ Deno.serve(async (req) => {
       for (const file of outstanding) {
         const filename = String(file.original_filename ?? "");
         const isPdf = /\.pdf$/i.test(filename);
-        const heavy = isDailyFile(filename);
+        const running = isRunningWorkbook(filename);
+        const heavy = !running && isDailyFile(filename);
         if (heavy && isPdf && pdfs >= PDFS_PER_BATCH) continue;
         if (heavy && !isPdf && workbooks >= WORKBOOKS_PER_BATCH) continue;
 
         const notes: string[] = [];
         let entry: StoredDaily = { payload: { kind: "skipped" }, notes, ok: true, rows: 0 };
 
-        if (!heavy) {
+        if (running) {
+          entry = {
+            payload: { kind: "running_workbook" },
+            notes: [`${filename}: the running workbook — the day's sheet is added to it`],
+            ok: true,
+            rows: 0,
+          };
+        } else if (!heavy) {
           notes.push(`${filename}: monthly export — not used by the daily report`);
         } else {
           if (isPdf) pdfs += 1;
