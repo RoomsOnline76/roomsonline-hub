@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Building2,
@@ -13,7 +13,13 @@ import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { ReportHoverSummary } from "@/components/reports/dashboard/ReportHoverSummary";
-import { RunHistoryList, formatRunMonth } from "@/components/reports/dashboard/RunHistoryList";
+import {
+  PRODUCT_GROUP_LABEL,
+  RunHistoryList,
+  runPeriodLabel,
+  runProducts,
+  type RunProduct,
+} from "@/components/reports/dashboard/RunHistoryList";
 import { CADENCE_LABEL } from "@/hooks/useReportRuns";
 import type { CycleState, PortfolioProperty, PortfolioRun } from "@/hooks/useReportPortfolio";
 import { reportsPath } from "@/lib/config";
@@ -41,8 +47,26 @@ export function PropertyReportRow({
 }) {
   const [open, setOpen] = useState(false);
   const latest = property.latestRun;
-  const history = property.runs.slice(1);
   const cycle = CYCLE_COPY[property.cycleState];
+
+  // Properties that produce more than one report product (owner packs, daily
+  // packs) get their whole history grouped by product; everyone else keeps the
+  // plain "earlier runs" list.
+  const grouped = useMemo(() => {
+    const groups = new Map<RunProduct, PortfolioRun[]>();
+    for (const run of property.runs) {
+      for (const product of runProducts(run)) {
+        const list = groups.get(product);
+        if (list) list.push(run);
+        else groups.set(product, [run]);
+      }
+    }
+    return groups;
+  }, [property.runs]);
+
+  const multiProduct = grouped.size > 1;
+  const history = multiProduct ? property.runs : property.runs.slice(1);
+  const groupOrder: RunProduct[] = ["monthly", "owner_pack", "daily"];
 
   return (
     <div className="rounded-lg border">
@@ -102,7 +126,7 @@ export function PropertyReportRow({
                 to={reportsPath(`/runs/${latest.id}`)}
                 className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs hover:bg-muted/50"
               >
-                <span className="font-medium tabular-nums">{formatRunMonth(latest)}</span>
+                <span className="font-medium tabular-nums">{runPeriodLabel(latest)}</span>
                 <RunStatusPill status={latest.status} />
               </Link>
             </HoverCardTrigger>
@@ -143,15 +167,34 @@ export function PropertyReportRow({
       </div>
 
       {open && history.length > 0 && (
-        <div className="border-t bg-muted/20 px-3 py-2.5">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Earlier runs
-          </p>
-          <RunHistoryList
-            runs={history}
-            propertyName={property.name}
-            onQuickView={(run) => onQuickView(run, property.name)}
-          />
+        <div className="border-t bg-muted/20 px-3 py-2.5 space-y-3">
+          {multiProduct ? (
+            groupOrder
+              .filter((product) => (grouped.get(product) ?? []).length > 0)
+              .map((product) => (
+                <div key={product}>
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {PRODUCT_GROUP_LABEL[product]}
+                  </p>
+                  <RunHistoryList
+                    runs={grouped.get(product) ?? []}
+                    propertyName={property.name}
+                    onQuickView={(run) => onQuickView(run, property.name)}
+                  />
+                </div>
+              ))
+          ) : (
+            <div>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Earlier runs
+              </p>
+              <RunHistoryList
+                runs={history}
+                propertyName={property.name}
+                onQuickView={(run) => onQuickView(run, property.name)}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

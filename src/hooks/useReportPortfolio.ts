@@ -12,7 +12,13 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useReportProperties, type ReportProperty } from "@/hooks/useReportProperties";
-import { asCadence, type ReportCadence, type ReportRunStatus } from "@/hooks/useReportRuns";
+import {
+  asCadence,
+  asReportKind,
+  type ReportCadence,
+  type ReportKind,
+  type ReportRunStatus,
+} from "@/hooks/useReportRuns";
 import { buildRunSummary, type RunSummaryPreview } from "@/lib/reports/runSummaryPreview";
 
 export interface PortfolioRun {
@@ -27,9 +33,17 @@ export interface PortfolioRun {
   cadence: ReportCadence;
   /** True once a report pack has been generated for the run. */
   hasDraft: boolean;
+  /** Storage path of the generated report, when one exists. */
+  draftPath: string | null;
   page2Enabled: boolean;
   summary: RunSummaryPreview;
   createdAt: string;
+  /** Which report structure the run produced. */
+  reportKind: ReportKind;
+  /** Storage path of the running daily workbook, when one was built. */
+  excelPath: string | null;
+  /** Bespoke owner-pack pages generated for the run. */
+  specialReportCount: number;
 }
 
 /** Where a property stands in its reporting cycle. */
@@ -67,6 +81,9 @@ interface RunRow {
   draft_report_path: string | null;
   page2_enabled: boolean | null;
   created_at: string;
+  report_kind: string | null;
+  excel_path: string | null;
+  report_special_reports: { count: number }[] | null;
   report_insights:
     | { page2: unknown; narrative: string | null; narrative_final: string | null }[]
     | { page2: unknown; narrative: string | null; narrative_final: string | null }
@@ -86,7 +103,7 @@ const monthsSince = (month: string | null): number | null => {
 };
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, report_month, status, title, cadence, draft_report_path, page2_enabled, created_at, report_insights(page2, narrative, narrative_final)";
+  "id, property_id, source_type, as_of_date, report_month, status, title, cadence, draft_report_path, page2_enabled, created_at, report_kind, excel_path, report_special_reports(count), report_insights(page2, narrative, narrative_final)";
 
 export function useReportPortfolio() {
   const { properties, isLoading: propertiesLoading, error: propertiesError } = useReportProperties();
@@ -114,6 +131,7 @@ export function useReportPortfolio() {
           title: row.title,
           cadence: asCadence(row.cadence),
           hasDraft: Boolean(row.draft_report_path),
+          draftPath: row.draft_report_path ?? null,
           page2Enabled: Boolean(row.page2_enabled),
           summary: buildRunSummary({
             page2: insight?.page2 ?? null,
@@ -121,6 +139,9 @@ export function useReportPortfolio() {
             narrative: insight?.narrative ?? null,
           }),
           createdAt: row.created_at,
+          reportKind: asReportKind(row.report_kind),
+          excelPath: row.excel_path ?? null,
+          specialReportCount: Number(row.report_special_reports?.[0]?.count ?? 0),
         } satisfies PortfolioRun;
       });
     },
