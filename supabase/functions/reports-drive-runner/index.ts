@@ -418,15 +418,17 @@ Deno.serve(async (req) => {
     if (action === "push_pdf") {
       const parentFolderId = String(body.parent_folder_id ?? "");
       const folderName = String(body.folder_name ?? "");
+      const existingFolderId = String(body.folder_id ?? "");
       const fileName = String(body.file_name ?? "");
       const contentBase64 = String(body.content_base64 ?? "");
-      if (!parentFolderId || !folderName || !fileName || !contentBase64) {
+      if ((!existingFolderId && (!parentFolderId || !folderName)) || !fileName || !contentBase64) {
         return json(
-          { error: "parent_folder_id, folder_name, file_name and content_base64 are required" },
+          { error: "folder_id (or parent_folder_id + folder_name), file_name and content_base64 are required" },
           400,
         );
       }
-      const folderId = await driveFolder(folderName, parentFolderId);
+      const folderId = existingFolderId || (await driveFolder(folderName, parentFolderId));
+
       const bytes = Uint8Array.from(atob(contentBase64), (c) => c.charCodeAt(0));
       const id = await driveUpload(fileName, folderId, bytes, "application/pdf");
       return json({ folder_id: folderId, file_id: id, name: fileName });
