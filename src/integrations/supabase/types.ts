@@ -7773,6 +7773,8 @@ export type Database = {
           brand_source: string
           cover_artwork_url: string | null
           created_at: string
+          daily_workbook_path: string | null
+          daily_workbook_updated_at: string | null
           default_source_type: string
           historical_baseline: Json
           logo_invert: boolean
@@ -7794,6 +7796,8 @@ export type Database = {
           brand_source?: string
           cover_artwork_url?: string | null
           created_at?: string
+          daily_workbook_path?: string | null
+          daily_workbook_updated_at?: string | null
           default_source_type?: string
           historical_baseline?: Json
           logo_invert?: boolean
@@ -7815,6 +7819,8 @@ export type Database = {
           brand_source?: string
           cover_artwork_url?: string | null
           created_at?: string
+          daily_workbook_path?: string | null
+          daily_workbook_updated_at?: string | null
           default_source_type?: string
           historical_baseline?: Json
           logo_invert?: boolean
@@ -8500,6 +8506,65 @@ export type Database = {
           },
         ]
       }
+      report_daily_days: {
+        Row: {
+          created_at: string
+          figures: Json
+          id: string
+          property_id: string
+          report_date: string
+          run_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          figures?: Json
+          id?: string
+          property_id: string
+          report_date: string
+          run_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          figures?: Json
+          id?: string
+          property_id?: string
+          report_date?: string
+          run_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_daily_days_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "report_daily_days_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_daily_days_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_daily_days_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_insights: {
         Row: {
           chart_recommendation: string | null
@@ -8781,6 +8846,7 @@ export type Database = {
           prior_report_declined: boolean
           processing_note: string | null
           property_id: string
+          report_kind: string
           report_month: string | null
           source_type: string
           special_report_set: string | null
@@ -8809,6 +8875,7 @@ export type Database = {
           prior_report_declined?: boolean
           processing_note?: string | null
           property_id: string
+          report_kind?: string
           report_month?: string | null
           source_type?: string
           special_report_set?: string | null
@@ -8837,6 +8904,7 @@ export type Database = {
           prior_report_declined?: boolean
           processing_note?: string | null
           property_id?: string
+          report_kind?: string
           report_month?: string | null
           source_type?: string
           special_report_set?: string | null

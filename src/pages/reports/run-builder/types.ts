@@ -2,6 +2,8 @@ import type { ReportRunDetail, ReportSourceFile } from "@/hooks/useReportRuns";
 import type { ReportSnapshot, ExcelResult } from "@/hooks/useReportSnapshot";
 import type { ReportSourceAdapter } from "@/lib/report-adapters";
 import type { DropZoneFileState } from "@/components/reports/FileDropZone";
+import type { DailyBuildResult, DailyFigures } from "@/hooks/useDailyDetailedReport";
+
 
 /**
  * Everything the stage screens need. The shell owns the hooks and hands this
@@ -65,5 +67,14 @@ export interface RunBuilderContext {
   /* Cheetah Plains owner slides add-on */
   /** True for properties whose owners receive a bespoke pack with the report. */
   ownerSlidesOffered: boolean;
+
+  /* Daily Detailed Report */
+  /** The day's figures, once read from the uploaded files. */
+  dailyFigures: DailyFigures | null;
+  /** Reads the day, stores it and refreshes the workbook and one-page report. */
+  onDailyBuild: () => void;
+  isDailyBusy: boolean;
+  dailyResult: DailyBuildResult | null;
 }
+
 

@@ -16,8 +16,11 @@ import { useReportProperties, type ReportProperty } from "@/hooks/useReportPrope
 import {
   useReportRunMutations,
   CADENCE_LABEL,
+  REPORT_KIND_LABEL,
   type ReportCadence,
+  type ReportKind,
 } from "@/hooks/useReportRuns";
+
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { uploadSourceFiles } from "@/lib/reportUpload";
 import { defaultRunTitle } from "@/lib/reportTitle";
@@ -54,6 +57,8 @@ interface WizardState {
   sourceType: ReportSourceKey;
   asOfDate: string;
   cadence: ReportCadence;
+  /** Which report structure this run produces. */
+  reportKind: ReportKind;
   /** Optional add-on slide set (currently `cheetaplains`) or null. */
   specialSet: string | null;
   title: string;
@@ -68,6 +73,7 @@ type WizardAction =
   | { type: "sourceType"; value: ReportSourceKey }
   | { type: "asOfDate"; value: string }
   | { type: "cadence"; value: ReportCadence }
+  | { type: "reportKind"; value: ReportKind }
   | { type: "specialSet"; value: string | null }
   | { type: "title"; value: string }
   | { type: "addFiles"; files: File[] }
@@ -86,6 +92,7 @@ const initialState: WizardState = {
   sourceType: DEFAULT_REPORT_SOURCE,
   asOfDate: todayIso(),
   cadence: "bimonthly",
+  reportKind: "revenue_review",
   specialSet: null,
   title: defaultTitle(todayIso(), "bimonthly"),
   titleEdited: false,
@@ -107,6 +114,8 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
         asOfDate: action.value,
         title: state.titleEdited ? state.title : defaultTitle(action.value, state.cadence),
       };
+    case "reportKind":
+      return { ...state, reportKind: action.value };
     case "cadence":
       return {
         ...state,
@@ -227,6 +236,7 @@ export default function ReportsNewRun() {
         title: state.title.trim() || defaultTitle(state.asOfDate, state.cadence),
         sourceType: state.sourceType,
         cadence: state.cadence,
+        reportKind: state.reportKind,
         specialReportSet: state.specialSet,
       });
 
@@ -234,7 +244,10 @@ export default function ReportsNewRun() {
         runId,
         propertyId: state.property.id,
         files: state.files,
-        acceptedExtensions: adapter.acceptedFileTypes,
+        acceptedExtensions:
+          state.reportKind === "daily_detailed"
+            ? [...adapter.acceptedFileTypes, ".pdf"]
+            : adapter.acceptedFileTypes,
         onProgress: ({ index, phase, message }) =>
           setFileStates((prev) => ({ ...prev, [index]: { phase, message } })),
       });
@@ -432,6 +445,28 @@ export default function ReportsNewRun() {
                   The date the on-the-books snapshot is taken.
                 </p>
               </div>
+              {ownerSlidesOffered && (
+                <div className="space-y-2">
+                  <Label>Report to build</Label>
+                  <div className="flex gap-2">
+                    {(["revenue_review", "daily_detailed"] as ReportKind[]).map((option) => (
+                      <Button
+                        key={option}
+                        type="button"
+                        variant={state.reportKind === option ? "default" : "outline"}
+                        className="flex-1"
+                        onClick={() => dispatch({ type: "reportKind", value: option })}
+                      >
+                        {REPORT_KIND_LABEL[option]}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    The daily report adds one day to this property's running spreadsheet and
+                    prints a single page for that day.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Report cadence</Label>
                 <div className="flex gap-2">

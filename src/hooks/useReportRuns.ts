@@ -8,6 +8,21 @@ export type ReportRunStatus = "draft" | "processing" | "ready" | "failed";
 /** How often this review is produced — drives the printed report wording. */
 export type ReportCadence = "monthly" | "bimonthly";
 
+/**
+ * Which report structure the run produces. `revenue_review` is the usual
+ * monthly / bi-monthly pack; `daily_detailed` is the Cheetah Plains day pack
+ * that appends to a running workbook.
+ */
+export type ReportKind = "revenue_review" | "daily_detailed";
+
+export const REPORT_KIND_LABEL: Record<ReportKind, string> = {
+  revenue_review: "Revenue review",
+  daily_detailed: "Daily Detailed Report",
+};
+
+export const asReportKind = (value: unknown): ReportKind =>
+  value === "daily_detailed" ? "daily_detailed" : "revenue_review";
+
 export const CADENCE_LABEL: Record<ReportCadence, string> = {
   monthly: "Monthly",
   bimonthly: "Bi-Monthly",
@@ -15,6 +30,7 @@ export const CADENCE_LABEL: Record<ReportCadence, string> = {
 
 export const asCadence = (value: unknown): ReportCadence =>
   value === "monthly" ? "monthly" : "bimonthly";
+
 
 export interface ReportSourceFile {
   id: string;
@@ -55,6 +71,9 @@ export interface ReportRunSummary {
   status: ReportRunStatus;
   title: string | null;
   cadence: ReportCadence;
+  /** Which report structure this run produces. */
+  reportKind: ReportKind;
+
   /** Optional add-on slide set chosen for this run, e.g. `cheetaplains`. */
   specialReportSet: string | null;
   fileCount: number;
@@ -91,6 +110,7 @@ interface RunRow {
   status: string | null;
   title: string | null;
   cadence?: string | null;
+  report_kind?: string | null;
   special_report_set?: string | null;
   error_message?: string | null;
   processing_note?: string | null;
@@ -124,6 +144,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
   status: asStatus(row.status),
   title: row.title,
   cadence: asCadence(row.cadence),
+  reportKind: asReportKind(row.report_kind),
   specialReportSet: row.special_report_set ?? null,
   fileCount: row.report_source_files?.[0]?.count ?? 0,
   errorMessage: row.error_message ?? null,
@@ -132,7 +153,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, report_month, previous_run_id, baseline_locked, build_stage, prior_report_declined, status, title, cadence, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, report_month, previous_run_id, baseline_locked, build_stage, prior_report_declined, status, title, cadence, report_kind, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
 
 
 /** Recent report runs, newest first. */
@@ -230,6 +251,8 @@ export interface CreateReportRunInput {
   title: string;
   sourceType?: string;
   cadence?: ReportCadence;
+  /** Which report structure the run produces. */
+  reportKind?: ReportKind;
   /** Optional add-on slide set on top of the standard pack. */
   specialReportSet?: string | null;
 }
@@ -258,6 +281,7 @@ export function useReportRunMutations() {
           as_of_date: input.asOfDate,
           title: input.title,
           cadence: asCadence(input.cadence),
+          report_kind: asReportKind(input.reportKind),
           source_type: isReportSourceKey(input.sourceType)
             ? input.sourceType
             : DEFAULT_REPORT_SOURCE,

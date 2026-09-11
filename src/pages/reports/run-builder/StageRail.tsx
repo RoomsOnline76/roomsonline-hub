@@ -11,14 +11,17 @@ interface Props {
   stage: RunBuildStage;
   completion: StageCompletion;
   onSelect: (stage: RunBuildStage) => void;
+  /** The stage list this run walks (standard review or daily detailed). */
+  stages?: RunBuildStage[];
 }
 
-/** Horizontal A–H stepper. Any stage can be revisited; nothing is destructive. */
-export function StageRail({ stage, completion, onSelect }: Props) {
+/** Horizontal stepper. Any stage can be revisited; nothing is destructive. */
+export function StageRail({ stage, completion, onSelect, stages = RUN_BUILD_STAGES }: Props) {
   return (
     <nav aria-label="Report build stages" className="overflow-x-auto">
       <ol className="flex items-stretch gap-1.5 min-w-max pb-1">
-        {RUN_BUILD_STAGES.map((key) => {
+        {stages.map((key) => {
+
           const meta = STAGE_META[key];
           const active = key === stage;
           const done = completion[key];
