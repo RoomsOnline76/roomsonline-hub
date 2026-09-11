@@ -69,13 +69,23 @@ interface StoredDaily {
   rows: number;
 }
 
-const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
-  XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
+const toGrid = (workbook: XLSX.WorkBook, name: string, maxRows?: number): Grid => {
+  const sheet = workbook.Sheets[name];
+  if (!sheet) return [];
+  let range: string | undefined;
+  if (maxRows && typeof sheet["!ref"] === "string") {
+    const decoded = XLSX.utils.decode_range(sheet["!ref"] as string);
+    decoded.e.r = Math.min(decoded.e.r, decoded.s.r + maxRows);
+    range = XLSX.utils.encode_range(decoded);
+  }
+  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     blankrows: true,
     defval: null,
     raw: true,
+    ...(range ? { range } : {}),
   });
+};
 
 const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
