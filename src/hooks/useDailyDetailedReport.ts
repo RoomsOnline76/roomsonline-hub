@@ -179,7 +179,8 @@ export function useDailyDetailedReport(
         // clear them when retrying a build after a worker resource termination.
         const batch = await call({ run_id: runId, mode: "parse_batch" });
         if (!batch.ok) {
-          await markFailed(batch.message);
+          const message = "message" in batch ? batch.message : "Daily report processing failed";
+          await markFailed(message);
           setResult(batch);
           return batch;
         }
@@ -191,7 +192,8 @@ export function useDailyDetailedReport(
 
       const finished = await call({ run_id: runId, mode: "build" });
       if (!finished.ok) {
-        await markFailed(finished.message);
+        const message = "message" in finished ? finished.message : "Daily report build failed";
+        await markFailed(message);
         setResult(finished);
         return finished;
       }
