@@ -9,6 +9,7 @@
 
 import { pdfDocumentTitle } from "../revenueReportHtml.ts";
 import type { DailyFigures } from "./dailyDetailed.ts";
+import type { DailyGridRow, DailyYearGrid } from "./daySheetGrid.ts";
 
 export interface DailyReportBranding {
   primary: string;
@@ -24,7 +25,14 @@ export interface DailyReportOptions {
   note?: string | null;
   /** Text pasted from the day's email, printed verbatim when present. */
   emailNotes?: string | null;
+  /**
+   * The financial form as it stands on the day's sheet in the workbook — one
+   * entry per financial year. Omitted when the run has no running workbook, in
+   * which case the report stays a single page.
+   */
+  yearGrids?: DailyYearGrid[];
 }
+
 
 const esc = (value: string): string =>
   value.replace(/[&<>"']/g, (char) =>
