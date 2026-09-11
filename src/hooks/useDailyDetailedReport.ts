@@ -142,6 +142,23 @@ export function useDailyDetailedReport(
   );
 
   /**
+   * A resource-limit termination kills the worker before its own catch block can
+   * clear the processing state. Reconcile that state from the surviving client
+   * so the run never remains on an endless spinner.
+   */
+  const markFailed = useCallback(
+    async (message: string): Promise<void> => {
+      if (!runId) return;
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ status: "failed", processing_note: null, error_message: message })
+        .eq("id", runId);
+      if (error) console.error("daily report failure state not recorded:", error);
+    },
+    [runId],
+  );
+
+  /**
    * Reads the day's files a few at a time — a day carries around twenty exports
    * and reading them in one call exhausts the worker — then builds the pack.
    */
@@ -158,8 +175,12 @@ export function useDailyDetailedReport(
           setResult(failed);
           return failed;
         }
-        const batch = await call({ run_id: runId, mode: "parse_batch", reset: guard === 1 });
+        // Parsed files and per-file attempt counters are resumable state. Never
+        // clear them when retrying a build after a worker resource termination.
+        const batch = await call({ run_id: runId, mode: "parse_batch" });
         if (!batch.ok) {
+          const message = "message" in batch ? batch.message : "Daily report processing failed";
+          await markFailed(message);
           setResult(batch);
           return batch;
         }
@@ -171,6 +192,8 @@ export function useDailyDetailedReport(
 
       const finished = await call({ run_id: runId, mode: "build" });
       if (!finished.ok) {
+        const message = "message" in finished ? finished.message : "Daily report build failed";
+        await markFailed(message);
         setResult(finished);
         return finished;
       }
@@ -190,7 +213,7 @@ export function useDailyDetailedReport(
       await queryClient.invalidateQueries({ queryKey: ["reports"] });
       await storedDay.refetch();
     }
-  }, [runId, queryClient, storedDay, call]);
+  }, [runId, queryClient, storedDay, call, markFailed]);
 
   return {
     build,
