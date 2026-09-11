@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
         error_message: null,
         excel_path: workbookPath,
         excel_generated_at: new Date().toISOString(),
-        draft_path: htmlPath,
+        draft_report_path: htmlPath,
         draft_generated_at: new Date().toISOString(),
       })
       .eq("id", runId);
