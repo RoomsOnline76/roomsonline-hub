@@ -33,6 +33,8 @@ export interface PortfolioRun {
   cadence: ReportCadence;
   /** True once a report pack has been generated for the run. */
   hasDraft: boolean;
+  /** Storage path of the generated report, when one exists. */
+  draftPath: string | null;
   page2Enabled: boolean;
   summary: RunSummaryPreview;
   createdAt: string;
@@ -129,6 +131,7 @@ export function useReportPortfolio() {
           title: row.title,
           cadence: asCadence(row.cadence),
           hasDraft: Boolean(row.draft_report_path),
+          draftPath: row.draft_report_path ?? null,
           page2Enabled: Boolean(row.page2_enabled),
           summary: buildRunSummary({
             page2: insight?.page2 ?? null,
