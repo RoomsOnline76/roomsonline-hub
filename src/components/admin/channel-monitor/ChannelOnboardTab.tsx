@@ -101,7 +101,6 @@ import { applyAdminScope } from "@/lib/adminScope";
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
-import { ChannelConnectEligibilityPanel } from "@/components/pms/channels/ChannelConnectEligibilityPanel";
 import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 import { resolveStepBRemedy } from "@/config/channelStepBRemedies";
@@ -1797,15 +1796,7 @@ export function ChannelOnboardTab({
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                
-                {/* Non-blocking: what the sales channel checks, measured from our own data. */}
-                <ChannelConnectEligibilityPanel
-                  subject={connectReadiness.subject}
-                  onShowMe={goToPropertyField}
-                  includeStaff
-                  onRecheck={connectReadiness.refresh}
-                  refreshing={connectReadiness.isFetching}
-                />
+                {/* The Channel Manager canvas stays dedicated to the vendor client. */}
                 <RuWhiteLabelEmbed propertyId={propertyId} />
               </CardContent>
             </Card>

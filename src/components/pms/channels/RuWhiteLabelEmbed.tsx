@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const EMBED_BG_LIGHT = "#FFFFFF";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
-const EMBED_DOCUMENT_VERSION = "2026-08-05-2";
+const EMBED_DOCUMENT_VERSION = "2026-09-11-1";
 const EMBED_BOOT_TIMEOUT_MS = 25_000;
 
 
@@ -231,7 +231,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     >
 
       {!embedReady && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background">
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
             <p className="text-sm">Loading your channels…</p>
@@ -244,7 +244,10 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
         title="ROL'OS Channel Manager"
         src={embedSrc ?? undefined}
         className="h-full w-full border-0"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
+        // allow-popups-to-escape-sandbox is required: channel sign-in hosts refuse a
+        // sandboxed window. allow-top-navigation-by-user-activation covers vendor
+        // redirects that cannot use a popup.
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation"
       />
     </div>
   );
