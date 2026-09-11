@@ -124,11 +124,29 @@ Deno.serve(async (req) => {
     let cancelled: DailyMovement | null = null;
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
+    /** Monthly-only exports are large and hold nothing the day needs. */
+    const isDailyFile = (name: string): boolean =>
+      /\.pdf$/i.test(name) ||
+      /housestate/i.test(name) ||
+      /provisional/i.test(name) ||
+      /(daily|villa|state)/i.test(name);
+
     for (const file of files) {
       const filename = String(file.original_filename ?? "");
       const notes: string[] = [];
       let ok = false;
       let rows = 0;
+
+      if (!isDailyFile(filename)) {
+        results.push({
+          id: file.id,
+          ok: true,
+          rows: 0,
+          notes: [`${filename}: monthly export — not used by the daily report`],
+        });
+        continue;
+      }
+
 
       const download = await admin.storage.from(BUCKET).download(file.storage_path);
       if (download.error || !download.data) {
