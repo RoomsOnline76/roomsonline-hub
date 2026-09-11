@@ -79,6 +79,7 @@ export function useDailyDetailedReport(
   const queryClient = useQueryClient();
   const [isBuilding, setIsBuilding] = useState(false);
   const [result, setResult] = useState<DailyBuildResult | null>(null);
+  const [progress, setProgress] = useState<DailyBuildProgress | null>(null);
 
   const storedDay = useQuery({
     queryKey: ["reports", "daily-day", propertyId, asOfDate],
@@ -189,13 +190,16 @@ export function useDailyDetailedReport(
       await queryClient.invalidateQueries({ queryKey: ["reports"] });
       await storedDay.refetch();
     }
-  }, [runId, queryClient, storedDay]);
+  }, [runId, queryClient, storedDay, call]);
 
   return {
     build,
     isBuilding,
+    progress,
     result,
     storedDay: storedDay.data ?? null,
     isLoadingDay: storedDay.isLoading,
+    emailText: emailText.data ?? "",
+    saveEmailText,
   };
 }
