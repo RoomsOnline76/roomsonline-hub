@@ -551,6 +551,8 @@ Deno.serve(async (req) => {
     const workbookNotes: string[] = [];
     let workbookBytes: Uint8Array | null = null;
     let sheetName = daySheetName(asOf);
+    let yearGrids: DailyYearGrid[] = [];
+
 
     const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
     if (basePath) {
