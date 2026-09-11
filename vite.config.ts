@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Connect, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
@@ -58,21 +58,33 @@ const buildInfoPlugin = (buildSeq: number) => {
 };
 
 /**
- * Rewrites /channel-manager/* to /ru-embed.html in dev mode to support
- * iframe history routes without conflicting with the main SPA router.
+ * Vite's SPA fallback wins over directory-index resolution for public assets.
+ * Keep the Channel Manager iframe on its dedicated document during local preview;
+ * published hosting serves the physical public/channel-manager/index.html first.
  */
-const channelManagerRewritePlugin = () => ({
-  name: 'channel-manager-rewrite',
-  configureServer(server: any) {
-    server.middlewares.use((req: any, _res: any, next: any) => {
-      if (req.url && req.url.startsWith('/channel-manager/')) {
-        const [path, search] = req.url.split('?');
-        req.url = '/ru-embed.html' + (search ? '?' + search : '');
+const channelManagerDocumentPlugin = (): Plugin => {
+  const installMiddleware = (middlewares: Connect.Server) => {
+    middlewares.use((request, _response, next) => {
+      const url = request.url;
+      if (url === "/channel-manager" || url?.startsWith("/channel-manager/")) {
+        const queryIndex = url.indexOf("?");
+        const query = queryIndex >= 0 ? url.slice(queryIndex) : "";
+        request.url = `/channel-manager/index.html${query}`;
       }
       next();
     });
-  }
-});
+  };
+
+  return {
+    name: "channel-manager-document",
+    configureServer(server) {
+      installMiddleware(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      installMiddleware(server.middlewares);
+    },
+  };
+};
 
 export default defineConfig(({ mode }) => {
   const buildSeq = resolveBuildSeq(mode === "production");
@@ -84,7 +96,7 @@ export default defineConfig(({ mode }) => {
       port: 8080,
     },
     plugins: [
-      channelManagerRewritePlugin(),
+      channelManagerDocumentPlugin(),
       react(),
       buildInfoPlugin(buildSeq),
       mode === "development" && componentTagger()
