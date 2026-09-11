@@ -375,6 +375,45 @@ Deno.serve(async (req) => {
       });
     }
 
+    /** Returns the bespoke owner-pack slides of a run, in printed order. */
+    if (action === "special_pack_html") {
+      const runId = String(body.run_id ?? "");
+      if (!runId) return json({ error: "run_id is required" }, 400);
+      const { data: run, error: runErr } = await supabase
+        .from("report_runs")
+        .select("id, as_of_date, properties(name)")
+        .eq("id", runId)
+        .maybeSingle();
+      if (runErr) throw runErr;
+      if (!run) return json({ error: "Run not found" }, 404);
+      const { data: rows, error } = await supabase
+        .from("report_special_reports")
+        .select("report_key, title, storage_path, payload")
+        .eq("run_id", runId);
+      if (error) throw error;
+      if (!rows?.length) return json({ error: "This run has no owner-pack slides" }, 409);
+      const ordered = [...rows].sort((a, b) => {
+        const ai = Number((a.payload as { pack_index?: number } | null)?.pack_index ?? 9999);
+        const bi = Number((b.payload as { pack_index?: number } | null)?.pack_index ?? 9999);
+        return ai - bi || String(a.report_key).localeCompare(String(b.report_key));
+      });
+      const pages: { title: string; html: string }[] = [];
+      for (const row of ordered) {
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from(BUCKET)
+          .download(row.storage_path as string);
+        if (dlErr || !blob) continue;
+        pages.push({ title: String(row.title ?? row.report_key), html: await blob.text() });
+      }
+      if (!pages.length) return json({ error: "Owner-pack slides could not be read" }, 409);
+      return json({
+        run_id: runId,
+        property_name: (run as { properties?: { name?: string } }).properties?.name ?? "",
+        as_of_date: (run as { as_of_date?: string }).as_of_date ?? null,
+        pages,
+      });
+    }
+
     /** Saves one printed PDF into a single (shared) Drive folder. */
     if (action === "push_pdf") {
       const parentFolderId = String(body.parent_folder_id ?? "");
