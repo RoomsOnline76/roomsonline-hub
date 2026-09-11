@@ -628,6 +628,8 @@ Deno.serve(async (req) => {
         logoUrl: settings?.report_logo_url ?? null,
       },
       emailNotes: pasted.note,
+      yearGrids,
+
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage
