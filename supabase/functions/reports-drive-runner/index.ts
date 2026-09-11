@@ -351,7 +351,50 @@ Deno.serve(async (req) => {
       return json({ folder_id: folderId, uploaded });
     }
 
+    /** Returns a run's generated report document, for printing it to PDF. */
+    if (action === "report_html") {
+      const runId = String(body.run_id ?? "");
+      if (!runId) return json({ error: "run_id is required" }, 400);
+      const { data: run, error } = await supabase
+        .from("report_runs")
+        .select("id, as_of_date, cadence, title, draft_report_path, properties(name)")
+        .eq("id", runId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!run) return json({ error: "Run not found" }, 404);
+      const path = (run as { draft_report_path?: string | null }).draft_report_path;
+      if (!path) return json({ error: "This run has no generated report yet" }, 409);
+      const { data: blob, error: dlErr } = await supabase.storage.from(BUCKET).download(path);
+      if (dlErr || !blob) throw dlErr ?? new Error("Missing stored report");
+      return json({
+        run_id: runId,
+        property_name: (run as { properties?: { name?: string } }).properties?.name ?? "",
+        as_of_date: (run as { as_of_date?: string }).as_of_date ?? null,
+        cadence: (run as { cadence?: string }).cadence ?? null,
+        html: await blob.text(),
+      });
+    }
+
+    /** Saves one printed PDF into a single (shared) Drive folder. */
+    if (action === "push_pdf") {
+      const parentFolderId = String(body.parent_folder_id ?? "");
+      const folderName = String(body.folder_name ?? "");
+      const fileName = String(body.file_name ?? "");
+      const contentBase64 = String(body.content_base64 ?? "");
+      if (!parentFolderId || !folderName || !fileName || !contentBase64) {
+        return json(
+          { error: "parent_folder_id, folder_name, file_name and content_base64 are required" },
+          400,
+        );
+      }
+      const folderId = await driveFolder(folderName, parentFolderId);
+      const bytes = Uint8Array.from(atob(contentBase64), (c) => c.charCodeAt(0));
+      const id = await driveUpload(fileName, folderId, bytes, "application/pdf");
+      return json({ folder_id: folderId, file_id: id, name: fileName });
+    }
+
     return json({ error: `Unknown action: ${action}` }, 400);
+
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("reports-drive-runner failed:", message);
