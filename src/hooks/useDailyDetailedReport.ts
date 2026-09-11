@@ -97,23 +97,83 @@ export function useDailyDetailedReport(
     },
   });
 
+  const emailText = useQuery({
+    queryKey: ["reports", "daily-email", runId],
+    enabled: Boolean(runId),
+    queryFn: async (): Promise<string> => {
+      if (!runId) return "";
+      const { data, error } = await supabase
+        .from("report_additional_inputs")
+        .select("free_commentary")
+        .eq("run_id", runId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.free_commentary ?? "";
+    },
+  });
+
+  const saveEmailText = useCallback(
+    async (text: string): Promise<{ ok: boolean; message?: string }> => {
+      if (!runId) return { ok: false, message: "No run selected" };
+      const { error } = await supabase
+        .from("report_additional_inputs")
+        .upsert({ run_id: runId, free_commentary: text.trim() || null }, { onConflict: "run_id" });
+      if (error) return { ok: false, message: error.message };
+      await emailText.refetch();
+      return { ok: true };
+    },
+    [runId, emailText],
+  );
+
+  /** One call to the function; returns the parsed body or a failure message. */
+  const call = useCallback(
+    async (
+      body: Record<string, unknown>,
+    ): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; message: string }> => {
+      const { data, error } = await supabase.functions.invoke("cheetaplains-daily-report", {
+        body,
+      });
+      if (error) return { ok: false, message: await readError(error) };
+      if (data?.error) return { ok: false, message: String(data.error) };
+      return { ok: true, data: (data ?? {}) as Record<string, unknown> };
+    },
+    [],
+  );
+
+  /**
+   * Reads the day's files a few at a time — a day carries around twenty exports
+   * and reading them in one call exhausts the worker — then builds the pack.
+   */
   const build = useCallback(async (): Promise<DailyBuildResult> => {
     if (!runId) return { ok: false, message: "No run selected" };
     setIsBuilding(true);
+    setProgress(null);
     try {
-      const { data, error } = await supabase.functions.invoke("cheetaplains-daily-report", {
-        body: { run_id: runId },
-      });
-      if (error) {
-        const failed = { ok: false, message: await readError(error) };
-        setResult(failed);
-        return failed;
+      let guard = 0;
+      for (;;) {
+        guard += 1;
+        if (guard > 40) {
+          const failed = { ok: false, message: "Reading the files did not finish" };
+          setResult(failed);
+          return failed;
+        }
+        const batch = await call({ run_id: runId, mode: "parse_batch", reset: guard === 1 });
+        if (!batch.ok) {
+          setResult(batch);
+          return batch;
+        }
+        const read = Number(batch.data.read) || 0;
+        const total = Number(batch.data.total) || 0;
+        setProgress({ read, total });
+        if ((Number(batch.data.remaining) || 0) === 0) break;
       }
-      if (data?.error) {
-        const failed = { ok: false, message: String(data.error) };
-        setResult(failed);
-        return failed;
+
+      const finished = await call({ run_id: runId, mode: "build" });
+      if (!finished.ok) {
+        setResult(finished);
+        return finished;
       }
+      const data = finished.data;
       const built: DailyBuildResult = {
         ok: true,
         figures: data?.figures as DailyFigures | undefined,
