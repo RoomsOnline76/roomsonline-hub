@@ -40,7 +40,7 @@ import {
 import { appendDaySheet, daySheetName } from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
 import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
 import {
-  readYearGrids,
+
   type DailyYearGrid,
 } from "../_shared/cheetaplains/daySheetGrid.ts";
 
