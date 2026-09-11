@@ -294,8 +294,15 @@ Deno.serve(async (req) => {
               if (workbook) {
                 // Stop at the first recognised sheet — nothing else is needed.
                 for (const name of workbook.SheetNames) {
+                  // Recognise the sheet from its opening rows; only the matching
+                  // sheet is converted in full.
+                  const probe = toGrid(workbook, name, PROBE_ROWS);
+                  const isHouseState = isHouseStateGrid(probe);
+                  const isProvisional = !isHouseState && isProvisionalGrid(probe);
+                  probe.length = 0;
+                  if (!isHouseState && !isProvisional) continue;
                   const grid = toGrid(workbook, name);
-                  if (isHouseStateGrid(grid)) {
+                  if (isHouseState) {
                     const houseState = parseHouseState(grid, filename);
                     if (houseState.errors.length) {
                       entry = {
