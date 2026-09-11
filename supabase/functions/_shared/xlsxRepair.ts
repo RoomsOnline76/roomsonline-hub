@@ -85,7 +85,13 @@ export async function repairWorkbookBuffer(buffer: ArrayBuffer): Promise<Workboo
 
     if (parts.length === 0) return untouched;
 
-    const output = (await rebuilt.generateAsync({ type: "uint8array" })) as Uint8Array;
+    // The rebuilt archive is only ever handed to SheetJS in memory, so storing
+    // the parts uncompressed saves the deflate pass — the single most expensive
+    // step on large protel exports, and enough to exhaust a worker on its own.
+    const output = (await rebuilt.generateAsync({
+      type: "uint8array",
+      compression: "STORE",
+    })) as Uint8Array;
     return {
       buffer: (output.buffer as ArrayBuffer).slice(output.byteOffset, output.byteOffset + output.byteLength),
       repaired: true,

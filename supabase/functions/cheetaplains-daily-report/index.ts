@@ -35,10 +35,17 @@ import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
-/** Workbooks read per `parse_batch` call — three fits inside the CPU budget. */
-const WORKBOOKS_PER_BATCH = 3;
+/**
+ * Workbooks read per `parse_batch` call. One at a time: the provisional export
+ * is far larger than a House State day and three of them exhaust the worker.
+ */
+const WORKBOOKS_PER_BATCH = 1;
 /** PDF text extraction is the most expensive read, so one per call. */
 const PDFS_PER_BATCH = 1;
+/** A file that exhausts the worker this many times is skipped with a note. */
+const MAX_FILE_ATTEMPTS = 2;
+/** Rows sampled to recognise a sheet before the whole grid is converted. */
+const PROBE_ROWS = 40;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -62,13 +69,23 @@ interface StoredDaily {
   rows: number;
 }
 
-const toGrid = (workbook: XLSX.WorkBook, name: string): Grid =>
-  XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
+const toGrid = (workbook: XLSX.WorkBook, name: string, maxRows?: number): Grid => {
+  const sheet = workbook.Sheets[name];
+  if (!sheet) return [];
+  let range: string | undefined;
+  if (maxRows && typeof sheet["!ref"] === "string") {
+    const decoded = XLSX.utils.decode_range(sheet["!ref"] as string);
+    decoded.e.r = Math.min(decoded.e.r, decoded.s.r + maxRows);
+    range = XLSX.utils.encode_range(decoded);
+  }
+  return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     blankrows: true,
     defval: null,
     raw: true,
+    ...(range ? { range } : {}),
   });
+};
 
 const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
@@ -193,6 +210,36 @@ Deno.serve(async (req) => {
           if (isPdf) pdfs += 1;
           else workbooks += 1;
 
+          // A file that kills the worker leaves no result behind, so the next
+          // call would pick it first and die again. Count the attempt before
+          // reading it and give up on it once it has had its chances.
+          const attempts = Number((file.detected_mapping ?? {})["daily_attempts"] ?? 0) + 1;
+          if (attempts > MAX_FILE_ATTEMPTS) {
+            const failed: StoredDaily = {
+              payload: { kind: "skipped" },
+              notes: [`${filename}: too large to read here — skipped after ${MAX_FILE_ATTEMPTS} attempts`],
+              ok: false,
+              rows: 0,
+            };
+            await admin
+              .from("report_source_files")
+              .update({
+                detected_mapping: { daily: failed, daily_attempts: attempts },
+                parsed_ok: false,
+                row_count: 0,
+                parse_errors: failed.notes,
+              })
+              .eq("id", file.id);
+            file.detected_mapping = { daily: failed, daily_attempts: attempts };
+            parsed += 1;
+            continue;
+          }
+          await admin
+            .from("report_source_files")
+            .update({ detected_mapping: { daily_attempts: attempts } })
+            .eq("id", file.id);
+
+
           const download = await admin.storage.from(BUCKET).download(file.storage_path);
           if (download.error || !download.data) {
             entry = {
@@ -247,8 +294,15 @@ Deno.serve(async (req) => {
               if (workbook) {
                 // Stop at the first recognised sheet — nothing else is needed.
                 for (const name of workbook.SheetNames) {
+                  // Recognise the sheet from its opening rows; only the matching
+                  // sheet is converted in full.
+                  const probe = toGrid(workbook, name, PROBE_ROWS);
+                  const isHouseState = isHouseStateGrid(probe);
+                  const isProvisional = !isHouseState && isProvisionalGrid(probe);
+                  probe.length = 0;
+                  if (!isHouseState && !isProvisional) continue;
                   const grid = toGrid(workbook, name);
-                  if (isHouseStateGrid(grid)) {
+                  if (isHouseState) {
                     const houseState = parseHouseState(grid, filename);
                     if (houseState.errors.length) {
                       entry = {
@@ -267,7 +321,7 @@ Deno.serve(async (req) => {
                     }
                     break;
                   }
-                  if (isProvisionalGrid(grid)) {
+                  if (isProvisional) {
                     const provisional = parseProvisionalGrid(grid, filename);
                     entry = {
                       payload: { kind: "provisional", months: provisional.months },
