@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const EMBED_BG_LIGHT = "#FFFFFF";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
-const EMBED_DOCUMENT_VERSION = "2026-09-11-1";
+const EMBED_DOCUMENT_VERSION = "2026-09-11-2";
 const EMBED_BOOT_TIMEOUT_MS = 25_000;
 
 
@@ -90,13 +90,11 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   }, [brand.brandEnabled, brand.primaryColor, brand.secondaryColor, brand.accentColor, brand.fontColor]);
 
   /**
-   * The RU one-line script is a jQuery snippet that appends `<base href="/">` plus the
-   * Angular bundles to the host document's <head> and then renders <white-pms-host>
-   * inside `#ruApp`. Running that directly in our SPA both fails (no global jQuery) and
-   * would hijack relative URL resolution for our own router, so it runs inside a
-   * same-origin host document served from `/ru-embed.html`. That document must have a
-   * real URL — in an `srcdoc` iframe the RU client's history.replaceState call throws a
-   * SecurityError and the client falls back to its generic "OOOPS" dialog.
+   * The RU one-line script renders its Angular client inside `#ruApp`. Running that
+   * directly in our SPA would let its history calls interfere with our own router, so
+   * it runs inside the dedicated same-origin document at `/channel-manager/`. That
+   * physical path gives the client a real history origin without a root-level base tag;
+   * an `srcdoc` iframe would make history.replaceState throw a SecurityError.
    */
   const embedSrc = useMemo(() => {
     if (!tokens) return null;

@@ -9,9 +9,7 @@
       Official White Label Channel Manager install assets. The vendor's Connect
       surface is a Bootstrap 3.3.7 dropdown/modal, so these must be present on this
       document and no other Bootstrap version may be loaded here.
-      `<base href="/">` belongs to this embed document only, never the parent SPA.
     -->
-    <base href="/" />
     <link
       href="https://fonts.googleapis.com/css?family=Open+Sans"
       rel="stylesheet"
@@ -86,31 +84,16 @@
           }).toString();
 
         var readySent = false;
-        var readyObserver = null;
         function signalReady() {
           if (readySent) return;
           readySent = true;
-          if (readyObserver) readyObserver.disconnect();
           parent.postMessage({ type: "ru-wl-ready" }, "*");
-        }
-
-        function watchForCards() {
-          readyObserver = new MutationObserver(function () {
-            if (document.querySelector("#ruApp .channel-card")) signalReady();
-          });
-          readyObserver.observe(document.getElementById("ruApp"), {
-            childList: true,
-            subtree: true,
-          });
-          // Fallback: hand the canvas over 8s after the client script loads even if
-          // the card selector never matches, so the parent loader never sticks.
-          setTimeout(signalReady, 8000);
         }
 
         function boot() {
           var s = document.createElement("script");
           s.src = src;
-          s.onload = watchForCards;
+          s.onload = signalReady;
           s.onerror = function () {
             parent.postMessage({ type: "ru-wl-error" }, "*");
           };
