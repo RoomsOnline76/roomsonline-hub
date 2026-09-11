@@ -248,13 +248,44 @@ export interface AppendDayResult {
   templateSheet: string;
   monthsWritten: string[];
   notes: string[];
-  /** The day's sheet as written, for reading the printed financial form back. */
-  sheetXml: string;
-  /** The sheet it was copied from — still holds the cached formula results. */
-  templateXml: string;
-  /** The workbook's shared strings, for the labels down column A. */
-  sharedStrings: string[];
+  /** The day's printed financial form, read off the sheet as written. */
+  yearGrids: DailyYearGrid[];
 }
+
+/**
+ * Resolves only the shared strings the day sheet's label column points at.
+ *
+ * The workbook holds tens of thousands of strings across 380-odd sheets;
+ * materialising all of them alongside the rebuilt file exhausts the worker.
+ */
+const labelStrings = (sharedXml: string, xmls: string[]): string[] => {
+  const wanted = new Set<number>();
+  for (const xml of xmls) {
+    for (const match of xml.matchAll(/<c r="A\d+"[^>]*t="s"[^>]*>\s*<v>(\d+)<\/v>/g)) {
+      wanted.add(Number(match[1]));
+    }
+  }
+  const resolved: string[] = [];
+  if (wanted.size === 0) return resolved;
+  const pattern = /<si>([\s\S]*?)<\/si>/g;
+  let index = 0;
+  let found = 0;
+  for (let match = pattern.exec(sharedXml); match; match = pattern.exec(sharedXml)) {
+    if (wanted.has(index)) {
+      resolved[index] = [...match[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)]
+        .map((piece) => piece[1])
+        .join("")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+      found += 1;
+      if (found === wanted.size) break;
+    }
+    index += 1;
+  }
+  return resolved;
+};
+
 
 
 /**
