@@ -112,7 +112,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
       embedVersion: EMBED_DOCUMENT_VERSION,
       reload: String(reloadNonce),
     });
-    return `/ru-embed.html?${params.toString()}`;
+    return `/channel-manager/?${params.toString()}`;
   }, [reloadNonce, tokens]);
 
   const retryEmbed = useCallback(() => {
