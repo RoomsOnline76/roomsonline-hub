@@ -47,8 +47,26 @@ export function PropertyReportRow({
 }) {
   const [open, setOpen] = useState(false);
   const latest = property.latestRun;
-  const history = property.runs.slice(1);
   const cycle = CYCLE_COPY[property.cycleState];
+
+  // Properties that produce more than one report product (owner packs, daily
+  // packs) get their whole history grouped by product; everyone else keeps the
+  // plain "earlier runs" list.
+  const grouped = useMemo(() => {
+    const groups = new Map<RunProduct, PortfolioRun[]>();
+    for (const run of property.runs) {
+      for (const product of runProducts(run)) {
+        const list = groups.get(product);
+        if (list) list.push(run);
+        else groups.set(product, [run]);
+      }
+    }
+    return groups;
+  }, [property.runs]);
+
+  const multiProduct = grouped.size > 1;
+  const history = multiProduct ? property.runs : property.runs.slice(1);
+  const groupOrder: RunProduct[] = ["monthly", "owner_pack", "daily"];
 
   return (
     <div className="rounded-lg border">
