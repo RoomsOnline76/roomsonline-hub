@@ -580,20 +580,9 @@ Deno.serve(async (req) => {
           workbookBytes = appended.bytes;
           sheetName = appended.sheetName;
           // The printed report carries the same financial form and graphs the
-          // day's sheet holds, read straight back off the sheet just written.
-          try {
-            yearGrids = readYearGrids(
-              appended.sheetXml,
-              appended.templateXml,
-              appended.sharedStrings,
-            );
-          } catch (error) {
-            workbookNotes.push(
-              `The day sheet's financial form could not be read for the report (${
-                error instanceof Error ? error.message : "unknown"
-              })`,
-            );
-          }
+          // day's sheet holds, read straight off the sheet just written.
+          yearGrids = appended.yearGrids;
+
           workbookNotes.push(
             `${appended.sheetName} ${appended.replaced ? "rebuilt" : "added"} from ${appended.templateSheet}` +
               ` — ${appended.monthsWritten.length} month(s) updated from the day's exports`,
