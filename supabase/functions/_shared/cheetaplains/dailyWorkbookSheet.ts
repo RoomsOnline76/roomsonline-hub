@@ -389,6 +389,27 @@ export async function appendDaySheet(
   zip.file("xl/_rels/workbook.xml.rels", relsXml);
   zip.file("[Content_Types].xml", typesXml);
 
+  // The printed financial form is read before the workbook is rebuilt, so the
+  // sheet XML can be released before the multi-megabyte zip is written.
+  let yearGrids: DailyYearGrid[] = [];
+  try {
+    const sharedFile = zip.file("xl/sharedStrings.xml");
+    const sharedXml = sharedFile ? await sharedFile.async("string") : "";
+    yearGrids = readYearGrids(
+      result.xml,
+      templateXml,
+      labelStrings(sharedXml, [result.xml, templateXml]),
+    );
+  } catch (error) {
+    notes.push(
+      `The day sheet's financial form could not be read for the report (${
+        error instanceof Error ? error.message : "unknown"
+      })`,
+    );
+  }
+  templateXml = "";
+  result.xml = "";
+
   // Untouched parts keep their existing compressed bytes, so this stays cheap
   // even on the full multi-year workbook.
   const bytes = (await zip.generateAsync({
@@ -397,17 +418,6 @@ export async function appendDaySheet(
     compressionOptions: { level: 1 },
   })) as Uint8Array;
 
-  const sharedFile = zip.file("xl/sharedStrings.xml");
-  const sharedXml = sharedFile ? await sharedFile.async("string") : "";
-  const sharedStrings = [...sharedXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((match) =>
-    [...match[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)]
-      .map((piece) => piece[1])
-      .join("")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">"),
-  );
-
   return {
     bytes,
     sheetName,
@@ -415,9 +425,7 @@ export async function appendDaySheet(
     templateSheet: template.name,
     monthsWritten: result.monthsWritten,
     notes,
-    sheetXml: result.xml,
-    templateXml,
-    sharedStrings,
+    yearGrids,
   };
 
 }
