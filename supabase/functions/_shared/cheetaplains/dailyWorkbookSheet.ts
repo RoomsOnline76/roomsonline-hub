@@ -410,12 +410,13 @@ export async function appendDaySheet(
   templateXml = "";
   result.xml = "";
 
-  // Untouched parts keep their existing compressed bytes, so this stays cheap
-  // even on the full multi-year workbook.
+  // Do not deflate the 380-odd unchanged sheets again. Recompression is CPU
+  // bound and exhausts the edge worker even at level 1; STORE trades a larger
+  // upload for a predictable, short build. This mirrors the repair path used
+  // for large protel workbooks.
   const bytes = (await zip.generateAsync({
     type: "uint8array",
-    compression: "DEFLATE",
-    compressionOptions: { level: 1 },
+    compression: "STORE",
   })) as Uint8Array;
 
   return {
