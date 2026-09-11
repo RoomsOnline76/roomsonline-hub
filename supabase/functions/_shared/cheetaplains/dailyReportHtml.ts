@@ -9,6 +9,7 @@
 
 import { pdfDocumentTitle } from "../revenueReportHtml.ts";
 import type { DailyFigures } from "./dailyDetailed.ts";
+import type { DailyGridRow, DailyYearGrid } from "./daySheetGrid.ts";
 
 export interface DailyReportBranding {
   primary: string;
@@ -24,7 +25,14 @@ export interface DailyReportOptions {
   note?: string | null;
   /** Text pasted from the day's email, printed verbatim when present. */
   emailNotes?: string | null;
+  /**
+   * The financial form as it stands on the day's sheet in the workbook — one
+   * entry per financial year. Omitted when the run has no running workbook, in
+   * which case the report stays a single page.
+   */
+  yearGrids?: DailyYearGrid[];
 }
+
 
 const esc = (value: string): string =>
   value.replace(/[&<>"']/g, (char) =>
@@ -67,10 +75,130 @@ const stat = (label: string, value: string, hint = ""): string =>
 const row = (cells: string[], head = false): string =>
   `<tr>${cells.map((cell) => `<${head ? "th" : "td"}>${cell}</${head ? "th" : "td"}>`).join("")}</tr>`;
 
+/** Short money for chart axes and dense grids: R1.2m, R840k. */
+const shortRand = (value: number | null): string => {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `R${(value / 1_000_000).toFixed(1)}m`;
+  if (abs >= 1_000) return `R${Math.round(value / 1_000)}k`;
+  return `R${Math.round(value)}`;
+};
+
+const variance = (row: DailyGridRow): number | null =>
+  row.bob === null || row.budget === null ? null : row.bob - row.budget;
+
+/** One financial year's month rows, quarters and total, as the workbook has it. */
+const yearTable = (grid: DailyYearGrid): string => {
+  const body = grid.rows
+    .map((entry) => {
+      const cls = entry.kind === "month" ? "" : ` class="sum"`;
+      const cells = [
+        esc(entry.label),
+        shortRand(entry.bob),
+        pct(entry.occupancy),
+        shortRand(entry.budget),
+        shortRand(variance(entry)),
+        shortRand(entry.stly),
+        pct(entry.stlyOccupancy),
+        shortRand(entry.lastYear),
+        pct(entry.lastYearOccupancy),
+      ];
+      return `<tr${cls}>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
+    })
+    .join("");
+  return `<table class="grid dense">
+  ${row(["Month", "On the books", "Occ %", "Budget", "Vs budget", "STLY", "Occ STLY", "Last year", "Occ LY"], true)}
+  ${body}
+</table>`;
+};
+
+interface ChartSeries {
+  name: string;
+  colour: string;
+  values: (number | null)[];
+}
+
+/**
+ * The workbook's own graph for one financial year — revenue on the books
+ * against budget and against the same time last year — as an inline SVG so the
+ * page prints without fetching anything.
+ */
+const yearChart = (grid: DailyYearGrid, primary: string): string => {
+  const months = grid.rows.filter((entry) => entry.kind === "month");
+  if (months.length === 0) return "";
+  const series: ChartSeries[] = [
+    { name: "On the books", colour: primary, values: months.map((entry) => entry.bob) },
+    { name: "Budget", colour: "#9CA3AF", values: months.map((entry) => entry.budget) },
+    { name: "Same time last year", colour: "#0EA5A4", values: months.map((entry) => entry.stly) },
+  ];
+
+  const width = 780;
+  const height = 250;
+  const left = 62;
+  const right = 12;
+  const top = 14;
+  const bottom = 34;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const peak = Math.max(
+    1,
+    ...series.flatMap((line) => line.values.map((value) => (value === null ? 0 : value))),
+  );
+  const step = months.length > 1 ? plotWidth / (months.length - 1) : 0;
+  const x = (index: number): number => left + index * step;
+  const y = (value: number): number => top + plotHeight - (value / peak) * plotHeight;
+
+  const ticks = [0, 0.25, 0.5, 0.75, 1]
+    .map((fraction) => {
+      const value = peak * fraction;
+      const at = y(value);
+      return `<line x1="${left}" x2="${width - right}" y1="${at}" y2="${at}" stroke="#E5E7EB" />` +
+        `<text x="${left - 6}" y="${at + 3}" text-anchor="end" class="axis">${shortRand(value)}</text>`;
+    })
+    .join("");
+
+  const labels = months
+    .map((entry, index) => {
+      const short = entry.label.split(" ")[0];
+      return `<text x="${x(index)}" y="${height - 12}" text-anchor="middle" class="axis">${esc(short)}</text>`;
+    })
+    .join("");
+
+  const lines = series
+    .map((line) => {
+      const points = line.values
+        .map((value, index) => (value === null ? null : `${x(index)},${y(value)}`))
+        .filter((point): point is string => point !== null)
+        .join(" ");
+      const dots = line.values
+        .map((value, index) =>
+          value === null ? "" : `<circle cx="${x(index)}" cy="${y(value)}" r="2.4" fill="${line.colour}" />`,
+        )
+        .join("");
+      return `<polyline points="${points}" fill="none" stroke="${line.colour}" stroke-width="2" />${dots}`;
+    })
+    .join("");
+
+  const legend = series
+    .map(
+      (line) =>
+        `<span class="key"><i style="background:${line.colour}"></i>${esc(line.name)}</span>`,
+    )
+    .join("");
+
+  return `<div class="chart">
+  <div class="chart-head"><strong>${esc(grid.label)}</strong>${legend}</div>
+  <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Revenue on the books against budget and last year for ${esc(grid.label)}">
+    ${ticks}${lines}${labels}
+  </svg>
+</div>`;
+};
+
 export interface DailyReportResult {
   html: string;
   documentTitle: string;
 }
+
 
 export function buildDailyReportHtml(options: DailyReportOptions): DailyReportResult {
   const { propertyName, figures, branding } = options;
@@ -131,7 +259,44 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   ])}
 </table>`;
 
+  // Pages 2+ are the day sheet's own financial form and the graphs that sit on
+  // it: one table per financial year, then all three graphs together. They only
+  // appear when the run has the running workbook to read them from.
+  const grids = (options.yearGrids ?? []).filter((grid) => grid.rows.length > 0);
+  const footer = `<div class="footer">
+    <span>${esc(documentTitle)}</span>
+    ${branding.logoUrl ? `<img src="${esc(branding.logoUrl)}" alt="${esc(propertyName)}" />` : ""}
+  </div>`;
+  const heading = (title: string): string =>
+    `<h1>${esc(propertyName)}</h1>
+  <div class="sub">${esc(title)} &middot; ${esc(longDate(figures.date))}</div>
+  <div class="rule"></div>`;
+
+  const gridPages = grids
+    .map(
+      (grid) => `<section class="page">
+  ${heading(`Financial form ${grid.label}`)}
+  <h2>Revenue on the books, budget and last year</h2>
+  ${yearTable(grid)}
+  <div class="note">Read from the day's sheet in the Daily Detailed Report workbook. Quarter and total occupancy are averages of their months, as the workbook calculates them.</div>
+  ${footer}
+</section>`,
+    )
+    .join("\n");
+
+  const chartsPage = grids.length
+    ? `<section class="page">
+  ${heading("Year on year")}
+  <h2>On the books against budget and the same time last year</h2>
+  ${grids.map((grid) => yearChart(grid, branding.primary)).join("")}
+  ${footer}
+</section>`
+    : "";
+
+  const extraPages = `${gridPages}\n${chartsPage}`;
+
   const html = `<!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -174,9 +339,20 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   }
   table.grid th:not(:first-child), table.grid td:not(:first-child) { text-align: right; }
   table.grid td { padding: 2.2mm 3mm; border-bottom: 1px solid var(--line); }
+  table.grid.dense { font-size: 8pt; }
+  table.grid.dense td { padding: 1.4mm 2mm; }
+  table.grid.dense tr.sum td { font-weight: 600; background: #F9FAFB; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
   .note { margin-top: 5mm; font-size: 9pt; color: var(--muted); }
   .email { font-size: 9pt; white-space: pre-wrap; border-left: 2px solid var(--primary); padding-left: 3mm; }
+  .chart { margin-bottom: 5mm; }
+  .chart svg { width: 100%; height: auto; }
+  .chart-head {
+    display: flex; align-items: center; gap: 5mm; font-size: 9pt; margin-bottom: 1mm;
+  }
+  .key { display: inline-flex; align-items: center; gap: 1.6mm; color: var(--muted); font-size: 8pt; }
+  .key i { width: 4mm; height: 1.2mm; border-radius: 1mm; display: inline-block; }
+  text.axis { font-size: 9px; fill: #6B7280; font-family: 'Instrument Sans', Arial, sans-serif; }
   .footer {
     margin-top: auto; padding-top: 6mm; border-top: 1px solid var(--line);
     display: flex; align-items: flex-end; justify-content: space-between;
@@ -184,7 +360,8 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   }
   .footer img { height: 16mm; object-fit: contain; }
   @page { size: A4; margin: 0; }
-  @media print { body { background: #fff; } .page { margin: 0; } }
+  @media print { body { background: #fff; } .page { margin: 0; break-after: page; } }
+
 </style>
 </head>
 <body>
@@ -210,8 +387,10 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
     ${branding.logoUrl ? `<img src="${esc(branding.logoUrl)}" alt="${esc(propertyName)}" />` : ""}
   </div>
 </section>
+${extraPages}
 </body>
 </html>`;
+
 
   return { html, documentTitle };
 }

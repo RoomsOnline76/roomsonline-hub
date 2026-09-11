@@ -39,6 +39,11 @@ import {
 } from "../_shared/cheetaplains/dailyDetailed.ts";
 import { appendDaySheet, daySheetName } from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
 import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
+import {
+  readYearGrids,
+  type DailyYearGrid,
+} from "../_shared/cheetaplains/daySheetGrid.ts";
+
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -551,6 +556,8 @@ Deno.serve(async (req) => {
     const workbookNotes: string[] = [];
     let workbookBytes: Uint8Array | null = null;
     let sheetName = daySheetName(asOf);
+    let yearGrids: DailyYearGrid[] = [];
+
 
     const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
     if (basePath) {
@@ -572,12 +579,28 @@ Deno.serve(async (req) => {
           });
           workbookBytes = appended.bytes;
           sheetName = appended.sheetName;
+          // The printed report carries the same financial form and graphs the
+          // day's sheet holds, read straight back off the sheet just written.
+          try {
+            yearGrids = readYearGrids(
+              appended.sheetXml,
+              appended.templateXml,
+              appended.sharedStrings,
+            );
+          } catch (error) {
+            workbookNotes.push(
+              `The day sheet's financial form could not be read for the report (${
+                error instanceof Error ? error.message : "unknown"
+              })`,
+            );
+          }
           workbookNotes.push(
             `${appended.sheetName} ${appended.replaced ? "rebuilt" : "added"} from ${appended.templateSheet}` +
               ` — ${appended.monthsWritten.length} month(s) updated from the day's exports`,
             ...appended.notes,
           );
         } catch (error) {
+
           workbookNotes.push(
             `The day's sheet could not be added (${error instanceof Error ? error.message : "unknown"})`,
           );
@@ -610,6 +633,8 @@ Deno.serve(async (req) => {
         logoUrl: settings?.report_logo_url ?? null,
       },
       emailNotes: pasted.note,
+      yearGrids,
+
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage

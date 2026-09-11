@@ -248,7 +248,14 @@ export interface AppendDayResult {
   templateSheet: string;
   monthsWritten: string[];
   notes: string[];
+  /** The day's sheet as written, for reading the printed financial form back. */
+  sheetXml: string;
+  /** The sheet it was copied from — still holds the cached formula results. */
+  templateXml: string;
+  /** The workbook's shared strings, for the labels down column A. */
+  sharedStrings: string[];
 }
+
 
 /**
  * Copies the workbook's newest day sheet into a sheet for `date`, patched with
@@ -358,6 +365,17 @@ export async function appendDaySheet(
     compressionOptions: { level: 1 },
   })) as Uint8Array;
 
+  const sharedFile = zip.file("xl/sharedStrings.xml");
+  const sharedXml = sharedFile ? await sharedFile.async("string") : "";
+  const sharedStrings = [...sharedXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((match) =>
+    [...match[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)]
+      .map((piece) => piece[1])
+      .join("")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">"),
+  );
+
   return {
     bytes,
     sheetName,
@@ -365,5 +383,9 @@ export async function appendDaySheet(
     templateSheet: template.name,
     monthsWritten: result.monthsWritten,
     notes,
+    sheetXml: result.xml,
+    templateXml,
+    sharedStrings,
   };
+
 }
