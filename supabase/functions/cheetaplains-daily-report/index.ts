@@ -455,8 +455,10 @@ Deno.serve(async (req) => {
 
     const days: ProtelDay[] = [];
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
+    const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
     let created: DailyMovement | null = null;
     let cancelled: DailyMovement | null = null;
+    let uploadedWorkbookPath: string | null = null;
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
     for (const file of files) {
@@ -472,11 +474,24 @@ Deno.serve(async (req) => {
           target.nights += bucket.nights;
           provisionalMonths[month] = target;
         }
+      } else if (payload.kind === "pipeline") {
+        for (const [role, totals] of Object.entries(payload.roles ?? {})) {
+          if (totals) pipeline[role as PipelineRole] = totals;
+        }
+      } else if (payload.kind === "running_workbook") {
+        uploadedWorkbookPath = file.storage_path;
       } else if (payload.kind === "created") {
         created = payload.movement;
       } else if (payload.kind === "cancelled") {
         cancelled = payload.movement;
       }
+    }
+
+    // Enquiries: the tracker's provisional sheet when the run carries it,
+    // otherwise whatever a reservation-style provisional export gave.
+    for (const [month, bucket] of Object.entries(pipeline.provisional?.months ?? {})) {
+      if (provisionalMonths[month]) continue;
+      provisionalMonths[month] = { revenue: bucket.value, nights: 0 };
     }
 
     // The exports always win; the pasted email only fills what they did not carry.
