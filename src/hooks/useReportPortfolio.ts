@@ -12,7 +12,13 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useReportProperties, type ReportProperty } from "@/hooks/useReportProperties";
-import { asCadence, type ReportCadence, type ReportRunStatus } from "@/hooks/useReportRuns";
+import {
+  asCadence,
+  asReportKind,
+  type ReportCadence,
+  type ReportKind,
+  type ReportRunStatus,
+} from "@/hooks/useReportRuns";
 import { buildRunSummary, type RunSummaryPreview } from "@/lib/reports/runSummaryPreview";
 
 export interface PortfolioRun {
