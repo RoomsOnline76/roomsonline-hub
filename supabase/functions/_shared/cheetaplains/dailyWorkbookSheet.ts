@@ -248,7 +248,14 @@ export interface AppendDayResult {
   templateSheet: string;
   monthsWritten: string[];
   notes: string[];
+  /** The day's sheet as written, for reading the printed financial form back. */
+  sheetXml: string;
+  /** The sheet it was copied from — still holds the cached formula results. */
+  templateXml: string;
+  /** The workbook's shared strings, for the labels down column A. */
+  sharedStrings: string[];
 }
+
 
 /**
  * Copies the workbook's newest day sheet into a sheet for `date`, patched with
