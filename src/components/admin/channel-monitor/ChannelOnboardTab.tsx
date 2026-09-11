@@ -1797,15 +1797,7 @@ export function ChannelOnboardTab({
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                
-                {/* Non-blocking: what the sales channel checks, measured from our own data. */}
-                <ChannelConnectEligibilityPanel
-                  subject={connectReadiness.subject}
-                  onShowMe={goToPropertyField}
-                  includeStaff
-                  onRecheck={connectReadiness.refresh}
-                  refreshing={connectReadiness.isFetching}
-                />
+                {/* The Channel Manager canvas stays dedicated to the vendor client. */}
                 <RuWhiteLabelEmbed propertyId={propertyId} />
               </CardContent>
             </Card>
