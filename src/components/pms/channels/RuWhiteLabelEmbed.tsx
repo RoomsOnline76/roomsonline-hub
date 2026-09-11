@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const EMBED_BG_LIGHT = "#FFFFFF";
 
 const EMBED_HEIGHT = "h-[calc(100vh-12rem)]";
-const EMBED_DOCUMENT_VERSION = "2026-08-05-2";
+const EMBED_DOCUMENT_VERSION = "2026-09-11-1";
 const EMBED_BOOT_TIMEOUT_MS = 25_000;
 
 
