@@ -1,23 +1,43 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, Loader2, Upload } from "lucide-react";
+import { CalendarDays, ClipboardPaste, Loader2, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { FileDropZone } from "@/components/reports/FileDropZone";
 import { SourceFileList } from "@/components/reports/SourceFileList";
 import type { RunBuilderContext } from "./types";
 
-/** Daily stage A — the day's date and its source files. */
+/** Daily stage A — the day's date, its source files and the day's email text. */
 export function StageDailyUpload({ ctx }: { ctx: RunBuilderContext }) {
   const [asOf, setAsOf] = useState(ctx.run.asOfDate.slice(0, 10));
   const [savingDate, setSavingDate] = useState(false);
+  const [emailText, setEmailText] = useState(ctx.dailyEmailText);
+  const [savingEmail, setSavingEmail] = useState(false);
 
   useEffect(() => {
     setAsOf(ctx.run.asOfDate.slice(0, 10));
   }, [ctx.run.asOfDate]);
 
+  useEffect(() => {
+    setEmailText(ctx.dailyEmailText);
+  }, [ctx.dailyEmailText]);
+
   const dateDirty = asOf !== ctx.run.asOfDate.slice(0, 10);
+  const emailDirty = emailText !== ctx.dailyEmailText;
+
+  const saveEmail = async (value: string) => {
+    setSavingEmail(true);
+    try {
+      const outcome = await ctx.onSaveDailyEmailText(value);
+      if (outcome.ok) toast.success(value.trim() ? "Email text saved" : "Email text cleared");
+      else toast.error("Could not save the email text", { description: outcome.message });
+    } finally {
+      setSavingEmail(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -100,6 +120,50 @@ export function StageDailyUpload({ ctx }: { ctx: RunBuilderContext }) {
             onReparse={ctx.onReparse}
             onRemove={ctx.onRemoveFile}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-medium">
+            <ClipboardPaste className="h-4 w-4" />
+            Paste from the email
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Paste the day's email here. Figures it mentions fill anything the exports did not
+            carry, and the text prints on the report under “From the day's email”.
+          </p>
+          <Textarea
+            value={emailText}
+            disabled={!ctx.editable || savingEmail}
+            onChange={(event) => setEmailText(event.target.value)}
+            placeholder="Paste the text of the day's email…"
+            className="min-h-[160px] font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" disabled={!emailDirty || savingEmail} onClick={() => void saveEmail(emailText)}>
+              {savingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save text
+            </Button>
+            {emailText.trim() && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={savingEmail}
+                onClick={() => {
+                  setEmailText("");
+                  void saveEmail("");
+                }}
+              >
+                Clear
+              </Button>
+            )}
+            {!emailDirty && ctx.dailyEmailText.trim() && (
+              <span className="text-xs text-muted-foreground">Saved on this run.</span>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

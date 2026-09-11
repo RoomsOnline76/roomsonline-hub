@@ -2,7 +2,11 @@ import type { ReportRunDetail, ReportSourceFile } from "@/hooks/useReportRuns";
 import type { ReportSnapshot, ExcelResult } from "@/hooks/useReportSnapshot";
 import type { ReportSourceAdapter } from "@/lib/report-adapters";
 import type { DropZoneFileState } from "@/components/reports/FileDropZone";
-import type { DailyBuildResult, DailyFigures } from "@/hooks/useDailyDetailedReport";
+import type {
+  DailyBuildProgress,
+  DailyBuildResult,
+  DailyFigures,
+} from "@/hooks/useDailyDetailedReport";
 
 
 /**
@@ -75,6 +79,11 @@ export interface RunBuilderContext {
   onDailyBuild: () => void;
   isDailyBusy: boolean;
   dailyResult: DailyBuildResult | null;
+  /** How far the stepped read of the day's files has got. */
+  dailyProgress: DailyBuildProgress | null;
+  /** Text pasted from the day's email, stored against the run. */
+  dailyEmailText: string;
+  onSaveDailyEmailText: (text: string) => Promise<{ ok: boolean; message?: string }>;
 }
 
 

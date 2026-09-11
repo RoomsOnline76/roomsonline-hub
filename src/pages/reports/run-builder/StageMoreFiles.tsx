@@ -27,7 +27,11 @@ export function StageMoreFiles({ ctx }: { ctx: RunBuilderContext }) {
               files={ctx.pending}
               states={ctx.fileStates}
               disabled={ctx.uploadBusy}
-              acceptedExtensions={ctx.adapter.acceptedFileTypes}
+              acceptedExtensions={
+                ctx.run.reportKind === "daily_detailed"
+                  ? [...ctx.adapter.acceptedFileTypes, ".pdf"]
+                  : ctx.adapter.acceptedFileTypes
+              }
               onFilesAdded={ctx.addPending}
               onRemove={ctx.removePending}
             />

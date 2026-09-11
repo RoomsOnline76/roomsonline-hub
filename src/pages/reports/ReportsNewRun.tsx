@@ -536,7 +536,11 @@ export default function ReportsNewRun() {
               files={state.files}
               states={fileStates}
               disabled={busy}
-              acceptedExtensions={adapter.acceptedFileTypes}
+              acceptedExtensions={
+                state.reportKind === "daily_detailed"
+                  ? [...adapter.acceptedFileTypes, ".pdf"]
+                  : adapter.acceptedFileTypes
+              }
               onFilesAdded={handleAddFiles}
               onRemove={handleRemoveFile}
             />
