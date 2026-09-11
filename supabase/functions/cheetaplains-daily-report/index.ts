@@ -210,6 +210,36 @@ Deno.serve(async (req) => {
           if (isPdf) pdfs += 1;
           else workbooks += 1;
 
+          // A file that kills the worker leaves no result behind, so the next
+          // call would pick it first and die again. Count the attempt before
+          // reading it and give up on it once it has had its chances.
+          const attempts = Number((file.detected_mapping ?? {})["daily_attempts"] ?? 0) + 1;
+          if (attempts > MAX_FILE_ATTEMPTS) {
+            const failed: StoredDaily = {
+              payload: { kind: "skipped" },
+              notes: [`${filename}: too large to read here — skipped after ${MAX_FILE_ATTEMPTS} attempts`],
+              ok: false,
+              rows: 0,
+            };
+            await admin
+              .from("report_source_files")
+              .update({
+                detected_mapping: { daily: failed, daily_attempts: attempts },
+                parsed_ok: false,
+                row_count: 0,
+                parse_errors: failed.notes,
+              })
+              .eq("id", file.id);
+            file.detected_mapping = { daily: failed, daily_attempts: attempts };
+            parsed += 1;
+            continue;
+          }
+          await admin
+            .from("report_source_files")
+            .update({ detected_mapping: { daily_attempts: attempts } })
+            .eq("id", file.id);
+
+
           const download = await admin.storage.from(BUCKET).download(file.storage_path);
           if (download.error || !download.data) {
             entry = {
