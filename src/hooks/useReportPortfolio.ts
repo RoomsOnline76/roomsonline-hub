@@ -136,6 +136,9 @@ export function useReportPortfolio() {
             narrative: insight?.narrative ?? null,
           }),
           createdAt: row.created_at,
+          reportKind: asReportKind(row.report_kind),
+          excelPath: row.excel_path ?? null,
+          specialReportCount: Number(row.report_special_reports?.[0]?.count ?? 0),
         } satisfies PortfolioRun;
       });
     },
