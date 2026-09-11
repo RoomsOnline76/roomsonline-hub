@@ -19,6 +19,7 @@
  */
 
 import JSZip from "npm:jszip@3.10.1";
+import { readYearGrids, type DailyYearGrid } from "./daySheetGrid.ts";
 
 const MONTHS = [
   "Jan",
