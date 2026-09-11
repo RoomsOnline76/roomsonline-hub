@@ -244,7 +244,10 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
         title="ROL'OS Channel Manager"
         src={embedSrc ?? undefined}
         className="h-full w-full border-0"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
+        // allow-popups-to-escape-sandbox is required: channel sign-in hosts refuse a
+        // sandboxed window. allow-top-navigation-by-user-activation covers vendor
+        // redirects that cannot use a popup.
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation"
       />
     </div>
   );
