@@ -259,7 +259,44 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   ])}
 </table>`;
 
+  // Pages 2+ are the day sheet's own financial form and the graphs that sit on
+  // it: one table per financial year, then all three graphs together. They only
+  // appear when the run has the running workbook to read them from.
+  const grids = (options.yearGrids ?? []).filter((grid) => grid.rows.length > 0);
+  const footer = `<div class="footer">
+    <span>${esc(documentTitle)}</span>
+    ${branding.logoUrl ? `<img src="${esc(branding.logoUrl)}" alt="${esc(propertyName)}" />` : ""}
+  </div>`;
+  const heading = (title: string): string =>
+    `<h1>${esc(propertyName)}</h1>
+  <div class="sub">${esc(title)} &middot; ${esc(longDate(figures.date))}</div>
+  <div class="rule"></div>`;
+
+  const gridPages = grids
+    .map(
+      (grid) => `<section class="page">
+  ${heading(`Financial form ${grid.label}`)}
+  <h2>Revenue on the books, budget and last year</h2>
+  ${yearTable(grid)}
+  <div class="note">Read from the day's sheet in the Daily Detailed Report workbook. Quarter and total occupancy are averages of their months, as the workbook calculates them.</div>
+  ${footer}
+</section>`,
+    )
+    .join("\n");
+
+  const chartsPage = grids.length
+    ? `<section class="page">
+  ${heading("Year on year")}
+  <h2>On the books against budget and the same time last year</h2>
+  ${grids.map((grid) => yearChart(grid, branding.primary)).join("")}
+  ${footer}
+</section>`
+    : "";
+
+  const extraPages = `${gridPages}\n${chartsPage}`;
+
   const html = `<!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="utf-8" />
