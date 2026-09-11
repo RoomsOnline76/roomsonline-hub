@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, report_kind, notes, properties(name)")
+      .select("id, property_id, as_of_date, report_kind, processing_note, properties(name)")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
         secondary: settings?.brand_secondary ?? "#1A1A2E",
         logoUrl: settings?.report_logo_url ?? null,
       },
-      note: typeof run.notes === "string" && run.notes.trim() ? run.notes.trim() : null,
+      note: typeof run.processing_note === "string" && run.processing_note.trim() ? run.processing_note.trim() : null,
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage
