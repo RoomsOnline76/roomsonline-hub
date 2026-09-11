@@ -49,6 +49,12 @@ export interface DailyBuildResult {
   documentTitle?: string;
 }
 
+/** Where the stepped read has got to, so the wizard can show progress. */
+export interface DailyBuildProgress {
+  read: number;
+  total: number;
+}
+
 const readError = async (error: unknown): Promise<string> => {
   if (error instanceof FunctionsHttpError) {
     try {
