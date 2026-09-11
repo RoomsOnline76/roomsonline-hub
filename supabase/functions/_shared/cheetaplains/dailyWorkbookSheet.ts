@@ -78,7 +78,8 @@ const cellsOf = (rowBody: string): Cell[] => {
 const isFormula = (cell: Cell): boolean => /<f[\s/>]/.test(cell.inner);
 
 /** Cached or literal number held by a cell, when it holds one. */
-const numberOf = (cell: Cell): number | null => {
+const numberOf = (cell: Cell | undefined): number | null => {
+  if (!cell) return null;
   if (/t="(s|inlineStr|str|b|e)"/.test(cell.attrs)) return null;
   const value = cell.inner.match(/<v>([^<]*)<\/v>/);
   if (!value) return null;
