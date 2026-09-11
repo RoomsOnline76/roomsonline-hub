@@ -54,7 +54,6 @@ import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
-import { ChannelConnectEligibilityPanel } from "@/components/pms/channels/ChannelConnectEligibilityPanel";
 
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
 import { RuCurrencyVerifyCard } from "@/components/pms/channels/RuCurrencyVerifyCard";

@@ -101,7 +101,6 @@ import { applyAdminScope } from "@/lib/adminScope";
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
-import { ChannelConnectEligibilityPanel } from "@/components/pms/channels/ChannelConnectEligibilityPanel";
 import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 import { resolveStepBRemedy } from "@/config/channelStepBRemedies";
