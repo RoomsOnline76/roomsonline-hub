@@ -375,19 +375,60 @@ Deno.serve(async (req) => {
       });
     }
 
+    /** Returns the bespoke owner-pack slides of a run, in printed order. */
+    if (action === "special_pack_html") {
+      const runId = String(body.run_id ?? "");
+      if (!runId) return json({ error: "run_id is required" }, 400);
+      const { data: run, error: runErr } = await supabase
+        .from("report_runs")
+        .select("id, as_of_date, properties(name)")
+        .eq("id", runId)
+        .maybeSingle();
+      if (runErr) throw runErr;
+      if (!run) return json({ error: "Run not found" }, 404);
+      const { data: rows, error } = await supabase
+        .from("report_special_reports")
+        .select("report_key, title, storage_path, payload")
+        .eq("run_id", runId);
+      if (error) throw error;
+      if (!rows?.length) return json({ error: "This run has no owner-pack slides" }, 409);
+      const ordered = [...rows].sort((a, b) => {
+        const ai = Number((a.payload as { pack_index?: number } | null)?.pack_index ?? 9999);
+        const bi = Number((b.payload as { pack_index?: number } | null)?.pack_index ?? 9999);
+        return ai - bi || String(a.report_key).localeCompare(String(b.report_key));
+      });
+      const pages: { title: string; html: string }[] = [];
+      for (const row of ordered) {
+        const { data: blob, error: dlErr } = await supabase.storage
+          .from(BUCKET)
+          .download(row.storage_path as string);
+        if (dlErr || !blob) continue;
+        pages.push({ title: String(row.title ?? row.report_key), html: await blob.text() });
+      }
+      if (!pages.length) return json({ error: "Owner-pack slides could not be read" }, 409);
+      return json({
+        run_id: runId,
+        property_name: (run as { properties?: { name?: string } }).properties?.name ?? "",
+        as_of_date: (run as { as_of_date?: string }).as_of_date ?? null,
+        pages,
+      });
+    }
+
     /** Saves one printed PDF into a single (shared) Drive folder. */
     if (action === "push_pdf") {
       const parentFolderId = String(body.parent_folder_id ?? "");
       const folderName = String(body.folder_name ?? "");
+      const existingFolderId = String(body.folder_id ?? "");
       const fileName = String(body.file_name ?? "");
       const contentBase64 = String(body.content_base64 ?? "");
-      if (!parentFolderId || !folderName || !fileName || !contentBase64) {
+      if ((!existingFolderId && (!parentFolderId || !folderName)) || !fileName || !contentBase64) {
         return json(
-          { error: "parent_folder_id, folder_name, file_name and content_base64 are required" },
+          { error: "folder_id (or parent_folder_id + folder_name), file_name and content_base64 are required" },
           400,
         );
       }
-      const folderId = await driveFolder(folderName, parentFolderId);
+      const folderId = existingFolderId || (await driveFolder(folderName, parentFolderId));
+
       const bytes = Uint8Array.from(atob(contentBase64), (c) => c.charCodeAt(0));
       const id = await driveUpload(fileName, folderId, bytes, "application/pdf");
       return json({ folder_id: folderId, file_id: id, name: fileName });
