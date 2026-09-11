@@ -755,14 +755,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           </Button>
         </div>
         <RuCurrencyNotice propertyId={propertyId} />
-        {/* Non-blocking: names what the channel will refuse on, before it refuses. */}
-        <ChannelConnectEligibilityPanel
-          subject={readiness.subject}
-          onShowMe={goToField}
-          includeStaff={isPlatformUser}
-          onRecheck={readiness.refresh}
-          refreshing={readiness.isFetching}
-        />
+        {/* The Channel Manager canvas stays dedicated to the vendor client. */}
         <RuWhiteLabelEmbed propertyId={propertyId} />
       </div>
     );
