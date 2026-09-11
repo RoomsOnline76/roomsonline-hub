@@ -302,9 +302,20 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   }
   table.grid th:not(:first-child), table.grid td:not(:first-child) { text-align: right; }
   table.grid td { padding: 2.2mm 3mm; border-bottom: 1px solid var(--line); }
+  table.grid.dense { font-size: 8pt; }
+  table.grid.dense td { padding: 1.4mm 2mm; }
+  table.grid.dense tr.sum td { font-weight: 600; background: #F9FAFB; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
   .note { margin-top: 5mm; font-size: 9pt; color: var(--muted); }
   .email { font-size: 9pt; white-space: pre-wrap; border-left: 2px solid var(--primary); padding-left: 3mm; }
+  .chart { margin-bottom: 5mm; }
+  .chart svg { width: 100%; height: auto; }
+  .chart-head {
+    display: flex; align-items: center; gap: 5mm; font-size: 9pt; margin-bottom: 1mm;
+  }
+  .key { display: inline-flex; align-items: center; gap: 1.6mm; color: var(--muted); font-size: 8pt; }
+  .key i { width: 4mm; height: 1.2mm; border-radius: 1mm; display: inline-block; }
+  text.axis { font-size: 9px; fill: #6B7280; font-family: 'Instrument Sans', Arial, sans-serif; }
   .footer {
     margin-top: auto; padding-top: 6mm; border-top: 1px solid var(--line);
     display: flex; align-items: flex-end; justify-content: space-between;
@@ -312,7 +323,8 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   }
   .footer img { height: 16mm; object-fit: contain; }
   @page { size: A4; margin: 0; }
-  @media print { body { background: #fff; } .page { margin: 0; } }
+  @media print { body { background: #fff; } .page { margin: 0; break-after: page; } }
+
 </style>
 </head>
 <body>
