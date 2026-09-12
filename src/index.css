@@ -1133,3 +1133,13 @@ div.channel-recommended {
   border-top-right-radius: 9999px;
   border-bottom-right-radius: 9999px;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Revenue Reports surface: hide the reCAPTCHA v3 badge. The badge is injected
+   globally by the provider but none of the reports pages use reCAPTCHA, so the
+   floating badge only clutters the workspace. Toggled via a body class set in
+   ReportsLayout; the login page (which actually uses reCAPTCHA) keeps it.
+   ──────────────────────────────────────────────────────────────────────────── */
+body.recaptcha-badge-hidden .grecaptcha-badge {
+  visibility: hidden !important;
+}

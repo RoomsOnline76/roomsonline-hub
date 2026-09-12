@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   BarChart3,
@@ -82,6 +82,15 @@ export function ReportsLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { profile, user, signOut } = useAuth();
   const displayName = profile?.full_name || user?.email || "Signed in";
+
+  // The reCAPTCHA v3 badge is injected globally by the provider and would
+  // otherwise float over every Revenue Reports page — none of which use
+  // reCAPTCHA. Hide it on this surface (the login page, which does use it,
+  // keeps the badge and stays TOS-compliant).
+  useEffect(() => {
+    document.body.classList.add("recaptcha-badge-hidden");
+    return () => document.body.classList.remove("recaptcha-badge-hidden");
+  }, []);
 
   return (
     <ReportsRouteGuard>
