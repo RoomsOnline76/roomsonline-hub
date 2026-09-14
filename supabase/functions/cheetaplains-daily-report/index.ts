@@ -568,6 +568,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    const days: ProtelDay[] = [...dayByDate.values()].sort((left, right) =>
+      left.date.localeCompare(right.date),
+    );
+    if (supersededDates.length) {
+      notes.push(
+        `${supersededDates.length} day(s) were printed in more than one House State export — the print carrying figures was used`,
+      );
+    }
+
     // Enquiries: the tracker's provisional sheet when the run carries it,
     // otherwise whatever a reservation-style provisional export gave.
     for (const [month, bucket] of Object.entries(pipeline.provisional?.months ?? {})) {
