@@ -207,8 +207,8 @@ export default function ReportsRunReview() {
       if (!runId || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return;
       const patch: { as_of_date: string; title?: string } = { as_of_date: isoDate };
       // A title we generated tracks the date; a hand-written one is left alone.
-      if (run && isGeneratedRunTitle(run.title, run.asOfDate)) {
-        patch.title = defaultRunTitle(isoDate, run.cadence);
+      if (run && isGeneratedRunTitle(run.title, run.asOfDate, run.reportKind)) {
+        patch.title = defaultRunTitle(isoDate, run.cadence, run.reportKind);
       }
       const { error } = await supabase.from("report_runs").update(patch).eq("id", runId);
       if (error) {
@@ -243,8 +243,8 @@ export default function ReportsRunReview() {
       if (!runId) return;
       setSavingCadence(true);
       const patch: { cadence: ReportCadence; title?: string } = { cadence };
-      if (run && isGeneratedRunTitle(run.title, run.asOfDate)) {
-        patch.title = defaultRunTitle(run.asOfDate, cadence);
+      if (run && isGeneratedRunTitle(run.title, run.asOfDate, run.reportKind)) {
+        patch.title = defaultRunTitle(run.asOfDate, cadence, run.reportKind);
       }
       const { error } = await supabase.from("report_runs").update(patch).eq("id", runId);
       setSavingCadence(false);
@@ -542,8 +542,8 @@ export default function ReportsRunReview() {
           )}
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">
-              {isGeneratedRunTitle(run.title, run.asOfDate)
-                ? defaultRunTitle(run.asOfDate, run.cadence)
+              {isGeneratedRunTitle(run.title, run.asOfDate, run.reportKind)
+                ? defaultRunTitle(run.asOfDate, run.cadence, run.reportKind)
                 : run.title}
             </h1>
             <p className="text-sm text-muted-foreground">
