@@ -534,7 +534,6 @@ Deno.serve(async (req) => {
       dayByDate.set(day.date, day);
     };
 
-    const days: ProtelDay[] = [];
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
     const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
     let created: DailyMovement | null = null;
