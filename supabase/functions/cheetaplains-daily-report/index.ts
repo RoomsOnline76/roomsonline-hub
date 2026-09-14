@@ -601,17 +601,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // The team's running workbook must never be replaced by the plain fallback:
+    // that would destroy the accumulated day sheets and lock every later run
+    // into the bare format. The fallback is written beside it instead.
+    const appendedToRunningWorkbook = workbookBytes !== null;
     if (!workbookBytes) {
       // Nothing to append to: fall back to the plain day-per-row workbook so the
       // run still produces a spreadsheet.
       workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
+      workbookNotes.push(
+        "A plain day-per-row spreadsheet was produced instead — the team's running workbook on file was left untouched",
+      );
     }
+    const outputWorkbookPath = appendedToRunningWorkbook
+      ? workbookPath
+      : `${run.property_id}/daily/daily-detailed-${asOf}-plain.xlsx`;
 
-    const workbookUpload = await admin.storage.from(BUCKET).upload(workbookPath, workbookBytes, {
-      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      upsert: true,
-    });
+    const workbookUpload = await admin.storage
+      .from(BUCKET)
+      .upload(outputWorkbookPath, workbookBytes, {
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        upsert: true,
+      });
     if (workbookUpload.error) return json({ error: workbookUpload.error.message }, 500);
+
 
     const report = buildDailyReportHtml({
       propertyName,
