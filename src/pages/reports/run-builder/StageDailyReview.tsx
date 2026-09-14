@@ -1,7 +1,7 @@
 import { Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DailyFigures } from "@/hooks/useDailyDetailedReport";
+import type { DailyFigures, DailyMovementStatus } from "@/hooks/useDailyDetailedReport";
 import type { RunBuilderContext } from "./types";
 
 const rand = (value: number | null | undefined): string =>
@@ -16,6 +16,12 @@ const pct = (value: number | null | undefined): string =>
 
 const num = (value: number | null | undefined): string =>
   value === null || value === undefined || !Number.isFinite(value) ? "—" : String(value);
+
+/** "3 provisional · 1 confirmed" — provisional business is never merged in. */
+const statusHint = (statuses: DailyMovementStatus[] | undefined): string | undefined =>
+  statuses && statuses.length > 1
+    ? statuses.map((s) => `${s.count} ${s.label.toLowerCase()}`).join(" · ")
+    : undefined;
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
   <div className="rounded-md border px-3 py-2.5">
