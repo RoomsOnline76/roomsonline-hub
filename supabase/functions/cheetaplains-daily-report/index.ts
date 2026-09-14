@@ -647,16 +647,18 @@ Deno.serve(async (req) => {
       });
     if (htmlUpload.error) return json({ error: htmlUpload.error.message }, 500);
 
-    await admin
-      .from("property_report_settings")
-      .upsert(
-        {
-          property_id: run.property_id,
-          daily_workbook_path: workbookPath,
-          daily_workbook_updated_at: new Date().toISOString(),
-        },
-        { onConflict: "property_id" },
-      );
+    if (appendedToRunningWorkbook) {
+      await admin
+        .from("property_report_settings")
+        .upsert(
+          {
+            property_id: run.property_id,
+            daily_workbook_path: workbookPath,
+            daily_workbook_updated_at: new Date().toISOString(),
+          },
+          { onConflict: "property_id" },
+        );
+    }
 
     await admin
       .from("report_runs")
@@ -664,12 +666,13 @@ Deno.serve(async (req) => {
         status: "ready",
         processing_note: null,
         error_message: null,
-        excel_path: workbookPath,
+        excel_path: outputWorkbookPath,
         excel_generated_at: new Date().toISOString(),
         draft_report_path: htmlPath,
         draft_generated_at: new Date().toISOString(),
       })
       .eq("id", runId);
+
 
     await logRunEvent(
       admin,
