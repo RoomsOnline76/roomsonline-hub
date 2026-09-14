@@ -245,6 +245,7 @@ export function parseMovementPdf(
       period: periodMatch
         ? { from: toIso(periodMatch[1]), to: toIso(periodMatch[2]) }
         : null,
+      statuses,
     },
   };
 }
