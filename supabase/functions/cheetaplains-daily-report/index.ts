@@ -645,7 +645,7 @@ Deno.serve(async (req) => {
     // workbook on the run replaces whatever was stored before.
     const primary = (settings?.brand_primary ?? "#1A1A2E").replace("#", "");
     const workbookPath = `${run.property_id}/daily/daily-detailed-report.xlsx`;
-    const workbookNotes: string[] = [];
+    const workbookNotes: string[] = [...dayNotes];
     let workbookBytes: Uint8Array | null = null;
     let sheetName = daySheetName(asOf);
     let yearGrids: DailyYearGrid[] = [];
