@@ -99,11 +99,6 @@ const withNumber = (cell: Cell, value: number | null): string => {
 };
 
 /** Same formula cell, minus its stale cached result. */
-const withoutCache = (cell: Cell): string => {
-  const inner = cell.inner.replace(/<v>[^<]*<\/v>/, "");
-  return renderCell(cell, cell.attrs, inner);
-};
-
 export interface DaySheetPatch {
   /** Provisional revenue on the books per `YYYY-MM`, from the day's exports. */
   provisionalByMonth: Record<string, number>;
