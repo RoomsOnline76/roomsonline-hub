@@ -165,14 +165,36 @@ const money = (raw: string): number | null => {
   return Number.isFinite(parsed) ? round2(parsed) : null;
 };
 
-const PAIR = /(\d{2}\.\d{2}\.\d{2})\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{1,3})\b/g;
+/**
+ * A reservation row: arrival, departure, nights and — on the created print —
+ * the `Res. status` word that follows them. Cancelled prints put a reservation
+ * number between the nights and the status, so that column is optional too.
+ */
+const PAIR =
+  /(\d{2}\.\d{2}\.\d{2})\s+(\d{2}\.\d{2}\.\d{2})\s+(\d{1,3})\b(?:\s+\d{2,6})?\s*(Provisional|Confirmed|Definite|Tentative|Waitlist|Wait list|Option|Cancelled|Canceled|No[- ]?show|Checked[- ]?in|Checked[- ]?out)?/gi;
+
+/** Print casing varies; the report always uses one spelling per status. */
+const statusLabel = (raw: string): string => {
+  const key = raw.toLowerCase().replace(/[-\s]+/g, " ");
+  if (key === "wait list") return "Waitlist";
+  if (key === "canceled") return "Cancelled";
+  if (key === "no show") return "No show";
+  if (key === "checked in") return "Checked in";
+  if (key === "checked out") return "Checked out";
+  return key.charAt(0).toUpperCase() + key.slice(1);
+};
+
+/** Confirmed first, then provisional business, then anything else. */
+const STATUS_ORDER = ["Confirmed", "Definite", "Provisional", "Tentative", "Option", "Waitlist"];
 
 /**
  * Reads a protel "Reservations Created" / "Cancelled Reservations" print.
  *
  * The PDF is a merged single text run, so reservations are counted by their
  * arrival/departure/nights triplet rather than by row geometry, and the money
- * total is taken from the printed `…Total` figure when one is present.
+ * total is taken from the printed `…Total` figure when one is present. Each
+ * row's reservation status is kept so confirmed and provisional business can
+ * be reported apart.
  */
 export function parseMovementPdf(
   text: string,
@@ -186,10 +208,26 @@ export function parseMovementPdf(
 
   let count = 0;
   let nights = 0;
+  const buckets = new Map<string, DailyMovementStatus>();
   for (const match of flat.matchAll(PAIR)) {
     count += 1;
-    nights += Number(match[3]) || 0;
+    const rowNights = Number(match[3]) || 0;
+    nights += rowNights;
+    if (!match[4]) continue;
+    const label = statusLabel(match[4]);
+    const bucket = buckets.get(label) ?? { label, count: 0, nights: 0 };
+    bucket.count += 1;
+    bucket.nights += rowNights;
+    buckets.set(label, bucket);
   }
+  const statuses = [...buckets.values()].sort((a, b) => {
+    const rank = (s: DailyMovementStatus) => {
+      const index = STATUS_ORDER.indexOf(s.label);
+      return index === -1 ? STATUS_ORDER.length : index;
+    };
+    return rank(a) - rank(b) || a.label.localeCompare(b.label);
+  });
+
 
   const totalMatch = flat.match(/([\d.]+,\d{2})\s*R?\s*Total\b/i);
   const periodMatch = flat.match(/(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}\.\d{2}\.\d{4})/);
