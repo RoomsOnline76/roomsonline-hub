@@ -245,6 +245,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
       ? rand(figures.created.value)
       : num(figures.created?.nights ?? null),
   ])}
+  ${statusRows(figures.created)}
   ${row([
     "Reservations cancelled",
     num(figures.cancelled?.count ?? null),
@@ -252,6 +253,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
       ? rand(figures.cancelled.value)
       : `${num(figures.cancelled?.nights ?? null)} nights`,
   ])}
+  ${statusRows(figures.cancelled)}
   ${row([
     "Active enquiries on the books",
     num(figures.enquiries?.nights ?? null),
