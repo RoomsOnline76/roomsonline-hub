@@ -689,7 +689,7 @@ Deno.serve(async (req) => {
     );
 
     const [workbookSigned, htmlSigned] = await Promise.all([
-      admin.storage.from(BUCKET).createSignedUrl(workbookPath, 60 * 30),
+      admin.storage.from(BUCKET).createSignedUrl(outputWorkbookPath, 60 * 30),
       admin.storage.from(BUCKET).createSignedUrl(htmlPath, 60 * 30),
     ]);
 
@@ -705,7 +705,7 @@ Deno.serve(async (req) => {
       pipeline,
       files: results,
       excel_url: workbookSigned.data?.signedUrl ?? null,
-      excel_path: workbookPath,
+      excel_path: outputWorkbookPath,
       report_url: htmlSigned.data?.signedUrl ?? null,
       report_path: htmlPath,
       document_title: report.documentTitle,
