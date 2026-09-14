@@ -61,6 +61,8 @@ const FILES_PER_BATCH = 1;
 const MAX_FILE_ATTEMPTS = 2;
 /** Rows sampled to recognise a sheet before the whole grid is converted. */
 const PROBE_ROWS = 40;
+/** A normal team master is about 11 MB; above this, recover from the clean uploaded master. */
+const OVERSIZED_RUNNING_WORKBOOK = 25_000_000;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -175,7 +177,11 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
-    const mode: "parse_batch" | "build" = body?.mode === "build" ? "build" : "parse_batch";
+    const requestedMode = typeof body?.mode === "string" ? body.mode : "parse_batch";
+    const mode: "parse_batch" | "aggregate" | "build" | "sample" =
+      requestedMode === "build" || requestedMode === "aggregate" || requestedMode === "sample"
+        ? requestedMode
+        : "parse_batch";
     const reset = body?.reset === true;
     const actorId = userData.user.id;
 
@@ -200,6 +206,33 @@ Deno.serve(async (req) => {
     if (filesError) return json({ error: filesError.message }, 500);
     const files = (fileRows ?? []) as FileRow[];
     if (!files.length) return json({ error: "This run has no uploaded files yet" }, 409);
+
+    if (mode === "sample") {
+      const currentSample = files.find((file) => isRunningWorkbook(file.original_filename ?? ""));
+      let samplePath = currentSample?.storage_path ?? null;
+      if (!samplePath) {
+        const { data: sampleRuns } = await admin
+          .from("report_runs")
+          .select("id")
+          .eq("property_id", run.property_id)
+          .order("as_of_date", { ascending: true });
+        const runIds = (sampleRuns ?? []).map((entry) => entry.id);
+        if (runIds.length) {
+          const { data: sampleFiles } = await admin
+            .from("report_source_files")
+            .select("storage_path, original_filename")
+            .in("run_id", runIds)
+            .order("created_at", { ascending: true });
+          samplePath = (sampleFiles ?? []).find((file) =>
+            isRunningWorkbook(file.original_filename ?? "")
+          )?.storage_path ?? null;
+        }
+      }
+      if (!samplePath) return json({ error: "No clean daily workbook sample is on file" }, 404);
+      const signed = await admin.storage.from(BUCKET).createSignedUrl(samplePath, 60 * 30);
+      if (signed.error) return json({ error: signed.error.message }, 500);
+      return json({ success: true, mode: "sample", sample_url: signed.data.signedUrl });
+    }
 
     /* ── parse a batch ───────────────────────────────────────────── */
 
@@ -555,6 +588,13 @@ Deno.serve(async (req) => {
       { onConflict: "property_id,report_date" },
     );
     if (upsertError) return json({ error: upsertError.message }, 500);
+    if (mode === "aggregate") {
+      await admin
+        .from("report_runs")
+        .update({ status: "processing", processing_note: "Daily figures prepared", error_message: null })
+        .eq("id", runId);
+      return json({ success: true, mode: "aggregate", figures, files: results });
+    }
 
     const { data: storedDays, error: daysError } = await admin
       .from("report_daily_days")
@@ -583,7 +623,46 @@ Deno.serve(async (req) => {
 
     const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
     if (basePath) {
-      const base = await admin.storage.from(BUCKET).download(basePath);
+      let resolvedBasePath = basePath;
+      let base = await admin.storage.from(BUCKET).download(resolvedBasePath);
+      let recoveredFromClean = false;
+      if (
+        !uploadedWorkbookPath &&
+        base.data &&
+        base.data.size > OVERSIZED_RUNNING_WORKBOOK
+      ) {
+        const oversizedSize = base.data.size;
+        const recoveryPath = `${run.property_id}/daily/recovery/daily-detailed-report-${runId}.xlsx`;
+        const backup = await admin.storage.from(BUCKET).copy(resolvedBasePath, recoveryPath);
+        if (backup.error && !/already exists/i.test(backup.error.message)) {
+          return json({ error: `The oversized workbook could not be backed up: ${backup.error.message}` }, 500);
+        }
+        const { data: propertyRuns } = await admin
+          .from("report_runs")
+          .select("id")
+          .eq("property_id", run.property_id)
+          .order("as_of_date", { ascending: true });
+        const propertyRunIds = (propertyRuns ?? []).map((entry) => entry.id);
+        const { data: sourceCandidates } = propertyRunIds.length
+          ? await admin
+            .from("report_source_files")
+            .select("storage_path, original_filename")
+            .in("run_id", propertyRunIds)
+            .order("created_at", { ascending: true })
+          : { data: [] };
+        const cleanMasterPath = (sourceCandidates ?? []).find((file) =>
+          isRunningWorkbook(file.original_filename ?? "") && file.storage_path !== resolvedBasePath
+        )?.storage_path ?? null;
+        if (!cleanMasterPath) {
+          return json({ error: "The running workbook is oversized and no clean master is available; it was preserved" }, 500);
+        }
+        resolvedBasePath = cleanMasterPath;
+        base = await admin.storage.from(BUCKET).download(resolvedBasePath);
+        recoveredFromClean = true;
+        workbookNotes.push(
+          `The ${(oversizedSize / 1_000_000).toFixed(1)} MB oversized workbook was backed up and the clean team master was restored`,
+        );
+      }
       if (base.error || !base.data) {
         workbookNotes.push(
           `The running workbook could not be opened (${base.error?.message ?? "download failed"})`,
@@ -596,9 +675,31 @@ Deno.serve(async (req) => {
           provisionalByMonth[month] = figuresForMonth.revenue;
         }
         try {
-          const appended = await appendDaySheet(await base.data.arrayBuffer(), asOf, {
+          let baseBuffer = await base.data.arrayBuffer();
+          if (recoveredFromClean) {
+            for (const historical of allFigures.filter((entry) => entry.date < asOf)) {
+              const month = historical.date.slice(0, 7);
+              const restored = await appendDaySheet(baseBuffer, historical.date, {
+                provisionalByMonth: { [month]: historical.monthOnBooks.revenue },
+                confirmedByMonth: { [month]: historical.monthToDate.revenue },
+                occupancyByMonth: { [month]: historical.monthToDate.occupancy ?? 0 },
+              });
+              baseBuffer = restored.bytes.buffer.slice(
+                restored.bytes.byteOffset,
+                restored.bytes.byteOffset + restored.bytes.byteLength,
+              );
+            }
+          }
+          const appended = await appendDaySheet(baseBuffer, asOf, {
             provisionalByMonth,
           });
+          const baseSize = base.data.size;
+          const maximumExpectedSize = Math.max(baseSize * 2, baseSize + 5_000_000);
+          if (appended.bytes.byteLength > maximumExpectedSize) {
+            throw new Error(
+              `The rebuilt workbook grew unexpectedly (${appended.bytes.byteLength} bytes from ${baseSize}); the previous workbook was preserved`,
+            );
+          }
           workbookBytes = appended.bytes;
           sheetName = appended.sheetName;
           // The printed report carries the same financial form and graphs the

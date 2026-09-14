@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, ClipboardPaste, Loader2, Upload } from "lucide-react";
+import { CalendarDays, ClipboardPaste, Download, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ export function StageDailyUpload({ ctx }: { ctx: RunBuilderContext }) {
   const [savingDate, setSavingDate] = useState(false);
   const [emailText, setEmailText] = useState(ctx.dailyEmailText);
   const [savingEmail, setSavingEmail] = useState(false);
+  const [downloadingSample, setDownloadingSample] = useState(false);
 
   useEffect(() => {
     setAsOf(ctx.run.asOfDate.slice(0, 10));
@@ -97,6 +98,29 @@ export function StageDailyUpload({ ctx }: { ctx: RunBuilderContext }) {
             Drop the villa-state exports, the provisional bookings export and the created /
             cancelled reservation prints for the day. Spreadsheets and PDFs are both accepted.
           </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted p-3">
+            <p className="text-sm text-muted-foreground">
+              Need to rework the team workbook? Download the clean compact sample, then upload it with the day's files.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={downloadingSample}
+              onClick={async () => {
+                setDownloadingSample(true);
+                try {
+                  const outcome = await ctx.onDownloadDailySample();
+                  if (!outcome.ok) toast.error("Could not download the clean sample", { description: outcome.message });
+                } finally {
+                  setDownloadingSample(false);
+                }
+              }}
+            >
+              {downloadingSample ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Download clean workbook sample
+            </Button>
+          </div>
           <FileDropZone
             files={ctx.pending}
             states={ctx.fileStates}

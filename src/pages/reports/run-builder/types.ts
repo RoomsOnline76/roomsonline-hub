@@ -84,6 +84,8 @@ export interface RunBuilderContext {
   /** Text pasted from the day's email, stored against the run. */
   dailyEmailText: string;
   onSaveDailyEmailText: (text: string) => Promise<{ ok: boolean; message?: string }>;
+  /** Downloads the clean team workbook that may be reworked and uploaded as a replacement base. */
+  onDownloadDailySample: () => Promise<{ ok: boolean; message?: string }>;
 }
 
 

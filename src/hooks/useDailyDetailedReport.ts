@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadFile } from "@/lib/reportDraftHtml";
 
 /** One business day of Cheetah Plains figures, as stored on the run. */
 export interface DailyPeriodFigures {
@@ -190,6 +191,13 @@ export function useDailyDetailedReport(
         if ((Number(batch.data.remaining) || 0) === 0) break;
       }
 
+      const aggregated = await call({ run_id: runId, mode: "aggregate" });
+      if (!aggregated.ok) {
+        const message = "message" in aggregated ? aggregated.message : "Daily figures could not be prepared";
+        await markFailed(message);
+        setResult(aggregated);
+        return aggregated;
+      }
       const finished = await call({ run_id: runId, mode: "build" });
       if (!finished.ok) {
         const message = "message" in finished ? finished.message : "Daily report build failed";
@@ -215,6 +223,16 @@ export function useDailyDetailedReport(
     }
   }, [runId, queryClient, storedDay, call, markFailed]);
 
+  const downloadSample = useCallback(async (): Promise<{ ok: boolean; message?: string }> => {
+    if (!runId) return { ok: false, message: "No run selected" };
+    const response = await call({ run_id: runId, mode: "sample" });
+    if (!response.ok) return response;
+    const url = response.data.sample_url;
+    if (typeof url !== "string" || !url) return { ok: false, message: "The sample is unavailable" };
+    await downloadFile(url);
+    return { ok: true };
+  }, [runId, call]);
+
   return {
     build,
     isBuilding,
@@ -224,5 +242,6 @@ export function useDailyDetailedReport(
     isLoadingDay: storedDay.isLoading,
     emailText: emailText.data ?? "",
     saveEmailText,
+    downloadSample,
   };
 }
