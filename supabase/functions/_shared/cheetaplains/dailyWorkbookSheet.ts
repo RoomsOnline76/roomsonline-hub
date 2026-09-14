@@ -20,7 +20,7 @@
 
 import JSZip from "npm:jszip@3.10.1";
 import { readYearGrids, type DailyYearGrid } from "./daySheetGrid.ts";
-import { patchZip } from "../rawZipPatch.ts";
+import { patchZip } from "../../cheetaplains-daily-report/rawZipPatch.ts";
 
 const MONTHS = [
   "Jan",

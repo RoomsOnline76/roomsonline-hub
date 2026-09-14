@@ -1,6 +1,6 @@
 /** Low-memory reader for the Provisional Bookings OOXML export. */
 import JSZip from "npm:jszip@3.10.1";
-import { isProvisionalGrid, parseProvisionalGrid, type ProvisionalParseResult } from "./provisional.ts";
+import { isProvisionalGrid, parseProvisionalGrid, type ProvisionalParseResult } from "../_shared/cheetaplains/provisional.ts";
 
 type Grid = unknown[][];
 

@@ -23,7 +23,7 @@ import {
   isProvisionalGrid,
   parseProvisionalGrid,
 } from "../_shared/cheetaplains/provisional.ts";
-import { parseProvisionalOoxml } from "../_shared/cheetaplains/provisionalOoxml.ts";
+import { parseProvisionalOoxml } from "./provisionalOoxml.ts";
 import {
   isPipelineGrid,
   parsePipelineGrid,
