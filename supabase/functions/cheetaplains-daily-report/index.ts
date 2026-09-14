@@ -175,7 +175,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
-    const mode: "parse_batch" | "build" = body?.mode === "build" ? "build" : "parse_batch";
+    const requestedMode = typeof body?.mode === "string" ? body.mode : "parse_batch";
+    const mode: "parse_batch" | "build" | "sample" =
+      requestedMode === "build" || requestedMode === "sample" ? requestedMode : "parse_batch";
     const reset = body?.reset === true;
     const actorId = userData.user.id;
 

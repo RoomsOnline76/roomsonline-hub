@@ -1,4 +1,5 @@
 /** Rewrites selected ZIP members while byte-copying every unchanged member. */
+import pako from "npm:pako@1.0.11";
 const LOCAL = 0x04034b50;
 const CENTRAL = 0x02014b50;
 const EOCD = 0x06054b50;
@@ -80,21 +81,24 @@ const parseEntries = (bytes: Uint8Array): { entries: Entry[]; comment: Uint8Arra
   return { entries, comment: bytes.slice(eocd + 22, eocd + 22 + commentLength) };
 };
 
-const storedRecords = (name: string, data: Uint8Array, offset: number): { local: Uint8Array; central: Uint8Array } => {
+const replacementRecords = (name: string, data: Uint8Array, offset: number): { local: Uint8Array; central: Uint8Array } => {
   const encodedName = new TextEncoder().encode(name);
   const checksum = crc32(data);
-  const local = new Uint8Array(30 + encodedName.length + data.length);
+  const deflated = pako.deflateRaw(data, { level: 6 });
+  const payload = deflated.length < data.length ? deflated : data;
+  const method = payload === data ? 0 : 8;
+  const local = new Uint8Array(30 + encodedName.length + payload.length);
   const localView = new DataView(local.buffer);
   put32(localView, 0, LOCAL);
   put16(localView, 4, 20);
   put16(localView, 6, 0x0800);
-  put16(localView, 8, 0);
+  put16(localView, 8, method);
   put32(localView, 14, checksum);
-  put32(localView, 18, data.length);
+  put32(localView, 18, payload.length);
   put32(localView, 22, data.length);
   put16(localView, 26, encodedName.length);
   local.set(encodedName, 30);
-  local.set(data, 30 + encodedName.length);
+  local.set(payload, 30 + encodedName.length);
 
   const central = new Uint8Array(46 + encodedName.length);
   const centralView = new DataView(central.buffer);
@@ -102,9 +106,9 @@ const storedRecords = (name: string, data: Uint8Array, offset: number): { local:
   put16(centralView, 4, 20);
   put16(centralView, 6, 20);
   put16(centralView, 8, 0x0800);
-  put16(centralView, 10, 0);
+  put16(centralView, 10, method);
   put32(centralView, 16, checksum);
-  put32(centralView, 20, data.length);
+  put32(centralView, 20, payload.length);
   put32(centralView, 24, data.length);
   put16(centralView, 28, encodedName.length);
   put32(centralView, 42, offset);
@@ -128,7 +132,7 @@ export function patchZip(
     if (removals.has(entry.name)) continue;
     const replacement = replacements.get(entry.name);
     if (replacement) {
-      const records = storedRecords(entry.name, replacement, outputOffset);
+      const records = replacementRecords(entry.name, replacement, outputOffset);
       localParts.push(records.local);
       centralParts.push(records.central);
       outputOffset += records.local.length;
@@ -144,7 +148,7 @@ export function patchZip(
 
   for (const [name, data] of replacements) {
     if (existingNames.has(name) || removals.has(name)) continue;
-    const records = storedRecords(name, data, outputOffset);
+    const records = replacementRecords(name, data, outputOffset);
     localParts.push(records.local);
     centralParts.push(records.central);
     outputOffset += records.local.length;
