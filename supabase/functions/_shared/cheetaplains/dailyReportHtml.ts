@@ -146,7 +146,9 @@ const yearChart = (grid: DailyYearGrid, primary: string): string => {
   if (months.length === 0) return "";
   const series: ChartSeries[] = [
     { name: "On the books", colour: primary, values: months.map((entry) => entry.bob) },
-    { name: "Budget", colour: "#9CA3AF", values: months.map((entry) => entry.budget) },
+    ...(hasBudget(grid)
+      ? [{ name: "Budget", colour: "#9CA3AF", values: months.map((entry) => entry.budget) }]
+      : []),
     { name: "Same time last year", colour: "#0EA5A4", values: months.map((entry) => entry.stly) },
   ];
 
