@@ -198,8 +198,6 @@ export function useDailyDetailedReport(
         setResult(aggregated);
         return aggregated;
       }
-      setProgress((current) => current ? { ...current } : null);
-
       const finished = await call({ run_id: runId, mode: "build" });
       if (!finished.ok) {
         const message = "message" in finished ? finished.message : "Daily report build failed";

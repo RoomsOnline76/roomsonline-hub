@@ -588,6 +588,13 @@ Deno.serve(async (req) => {
       { onConflict: "property_id,report_date" },
     );
     if (upsertError) return json({ error: upsertError.message }, 500);
+    if (mode === "aggregate") {
+      await admin
+        .from("report_runs")
+        .update({ status: "processing", processing_note: "Daily figures prepared", error_message: null })
+        .eq("id", runId);
+      return json({ success: true, mode: "aggregate", figures, files: results });
+    }
 
     const { data: storedDays, error: daysError } = await admin
       .from("report_daily_days")
@@ -618,6 +625,7 @@ Deno.serve(async (req) => {
     if (basePath) {
       let resolvedBasePath = basePath;
       let base = await admin.storage.from(BUCKET).download(resolvedBasePath);
+      let recoveredFromClean = false;
       if (
         !uploadedWorkbookPath &&
         base.data &&
@@ -650,6 +658,7 @@ Deno.serve(async (req) => {
         }
         resolvedBasePath = cleanMasterPath;
         base = await admin.storage.from(BUCKET).download(resolvedBasePath);
+        recoveredFromClean = true;
         workbookNotes.push(
           `The ${(oversizedSize / 1_000_000).toFixed(1)} MB oversized workbook was backed up and the clean team master was restored`,
         );
@@ -666,7 +675,22 @@ Deno.serve(async (req) => {
           provisionalByMonth[month] = figuresForMonth.revenue;
         }
         try {
-          const appended = await appendDaySheet(await base.data.arrayBuffer(), asOf, {
+          let baseBuffer = await base.data.arrayBuffer();
+          if (recoveredFromClean) {
+            for (const historical of allFigures.filter((entry) => entry.date < asOf)) {
+              const month = historical.date.slice(0, 7);
+              const restored = await appendDaySheet(baseBuffer, historical.date, {
+                provisionalByMonth: { [month]: historical.monthOnBooks.revenue },
+                confirmedByMonth: { [month]: historical.monthToDate.revenue },
+                occupancyByMonth: { [month]: historical.monthToDate.occupancy ?? 0 },
+              });
+              baseBuffer = restored.bytes.buffer.slice(
+                restored.bytes.byteOffset,
+                restored.bytes.byteOffset + restored.bytes.byteLength,
+              );
+            }
+          }
+          const appended = await appendDaySheet(baseBuffer, asOf, {
             provisionalByMonth,
           });
           const baseSize = base.data.size;
