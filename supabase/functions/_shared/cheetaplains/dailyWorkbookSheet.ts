@@ -198,11 +198,10 @@ export function patchDaySheet(xml: string, patch: DaySheetPatch): DaySheetPatchR
           swap(cell, withNumber(cell, Math.round(occupancy * 100) / 100));
           continue;
         }
-        // Cached formula results are yesterday's — drop them so the workbook
-        // recalculates the whole sheet when it is opened.
-        if (isFormula(cell) && /<v>/.test(cell.inner)) {
-          swap(cell, withoutCache(cell));
-        }
+        // Keep formula caches. The PDF renderer cannot evaluate Excel formulas,
+        // and these cached values carry the budget, quarter and annual totals.
+        // Cells changed above are literals; Excel still recalculates formula
+        // dependants when the workbook is opened.
       }
 
       return changed ? `<row${rowAttrs}>${next}</row>` : whole;
@@ -240,6 +239,44 @@ const relationshipTarget = (relsXml: string, rid: string): string | null => {
 
 const escapeXml = (value: string): string =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+const stripEmbeddedCharts = async (
+  zip: JSZip,
+  replacements: Map<string, Uint8Array>,
+  removals: Set<string>,
+  encode: (value: string) => Uint8Array,
+): Promise<number> => {
+  let removedCharts = 0;
+  for (const name of Object.keys(zip.files)) {
+    if (name.startsWith("xl/charts/") || name.startsWith("xl/drawings/")) {
+      removals.add(name);
+      if (/^xl\/charts\/chart\d+\.xml$/.test(name)) removedCharts += 1;
+    }
+  }
+
+  for (const name of Object.keys(zip.files)) {
+    if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(name)) continue;
+    const file = zip.file(name);
+    if (!file) continue;
+    const xml = await file.async("string");
+    const cleaned = xml.replace(/<drawing\b[^>]*\/>/g, "");
+    if (cleaned !== xml) replacements.set(name, encode(cleaned));
+  }
+
+  for (const name of Object.keys(zip.files)) {
+    if (!/^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/.test(name)) continue;
+    const file = zip.file(name);
+    if (!file) continue;
+    const xml = await file.async("string");
+    const cleaned = xml.replace(
+      /<Relationship\b[^>]*Type="[^"]*\/drawing"[^>]*\/>/g,
+      "",
+    );
+    if (cleaned !== xml) replacements.set(name, encode(cleaned));
+  }
+
+  return removedCharts;
+};
 
 export interface AppendDayResult {
   bytes: Uint8Array;
@@ -400,6 +437,15 @@ export async function appendDaySheet(
     relsXml = relsXml.replace(/<Relationship[^>]*calcChain\.xml"[^>]*\/>/, "");
   }
 
+  const removedCharts = await stripEmbeddedCharts(zip, replacements, removals, encode);
+  if (removedCharts > 0) {
+    typesXml = typesXml.replace(
+      /<Override\b[^>]*PartName="\/xl\/(?:charts|drawings)\/[^>]*\/>/g,
+      "",
+    );
+    notes.push(`${removedCharts} embedded workbook graph(s) removed; the PDF graphs are retained`);
+  }
+
   replacements.set("xl/workbook.xml", encode(workbookXml));
   replacements.set("xl/_rels/workbook.xml.rels", encode(relsXml));
   replacements.set("[Content_Types].xml", encode(typesXml));
@@ -411,11 +457,11 @@ export async function appendDaySheet(
     const sharedFile = zip.file("xl/sharedStrings.xml");
     const sharedXml = sharedFile ? await sharedFile.async("string") : "";
     // Budget, same-time-last-year and last-year figures are seed data that does
-    // not move day to day. Where the day's own sheet holds only a formula, a few
-    // earlier day sheets are read so those columns print their real figures.
+    // not move day to day. Where the day's own sheet holds only a formula, read
+    // older day sheets as well as recent ones so an intact source cache wins.
     const seedSheets: string[] = [];
-    for (const entry of entries) {
-      if (seedSheets.length >= 3) break;
+    for (const entry of [...entries].reverse()) {
+      if (seedSheets.length >= 12) break;
       if (entry.name === sheetName || entry.name === template.name) continue;
       if (!DAY_SHEET.test(entry.name)) continue;
       const path = relationshipTarget(relsXml, entry.rid);
