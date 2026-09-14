@@ -178,8 +178,10 @@ Deno.serve(async (req) => {
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
     const requestedMode = typeof body?.mode === "string" ? body.mode : "parse_batch";
-    const mode: "parse_batch" | "build" | "sample" =
-      requestedMode === "build" || requestedMode === "sample" ? requestedMode : "parse_batch";
+    const mode: "parse_batch" | "aggregate" | "build" | "sample" =
+      requestedMode === "build" || requestedMode === "aggregate" || requestedMode === "sample"
+        ? requestedMode
+        : "parse_batch";
     const reset = body?.reset === true;
     const actorId = userData.user.id;
 
@@ -621,6 +623,7 @@ Deno.serve(async (req) => {
         base.data &&
         base.data.size > OVERSIZED_RUNNING_WORKBOOK
       ) {
+        const oversizedSize = base.data.size;
         const recoveryPath = `${run.property_id}/daily/recovery/daily-detailed-report-${runId}.xlsx`;
         const backup = await admin.storage.from(BUCKET).copy(resolvedBasePath, recoveryPath);
         if (backup.error && !/already exists/i.test(backup.error.message)) {
@@ -648,7 +651,7 @@ Deno.serve(async (req) => {
         resolvedBasePath = cleanMasterPath;
         base = await admin.storage.from(BUCKET).download(resolvedBasePath);
         workbookNotes.push(
-          `The ${Math.round((basePath === settings?.daily_workbook_path ? 49.6 : 0) * 10) / 10} MB oversized workbook was backed up and the clean team master was restored`,
+          `The ${(oversizedSize / 1_000_000).toFixed(1)} MB oversized workbook was backed up and the clean team master was restored`,
         );
       }
       if (base.error || !base.data) {

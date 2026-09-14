@@ -191,6 +191,15 @@ export function useDailyDetailedReport(
         if ((Number(batch.data.remaining) || 0) === 0) break;
       }
 
+      const aggregated = await call({ run_id: runId, mode: "aggregate" });
+      if (!aggregated.ok) {
+        const message = "message" in aggregated ? aggregated.message : "Daily figures could not be prepared";
+        await markFailed(message);
+        setResult(aggregated);
+        return aggregated;
+      }
+      setProgress((current) => current ? { ...current } : null);
+
       const finished = await call({ run_id: runId, mode: "build" });
       if (!finished.ok) {
         const message = "message" in finished ? finished.message : "Daily report build failed";
