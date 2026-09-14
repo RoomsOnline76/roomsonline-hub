@@ -15,6 +15,14 @@
 import ExcelJS from "npm:exceljs@4.4.0";
 import type { ProtelDay } from "../protel/houseState.ts";
 
+/** One reservation-status bucket on a movement print. */
+export interface DailyMovementStatus {
+  /** As printed: `Confirmed`, `Provisional`, `Waitlist`, … */
+  label: string;
+  count: number;
+  nights: number;
+}
+
 export interface DailyMovement {
   /** Reservations counted on the movement PDF. */
   count: number;
@@ -24,6 +32,11 @@ export interface DailyMovement {
   nights: number | null;
   /** Printed `04.09.2026 - 07.09.2026` window. */
   period: { from: string; to: string } | null;
+  /**
+   * Split by the print's `Res. status` column. Confirmed and provisional
+   * business is never merged: most provisionals never confirm.
+   */
+  statuses: DailyMovementStatus[];
 }
 
 export interface DailyPeriodFigures {
