@@ -547,7 +547,7 @@ Deno.serve(async (req) => {
       results.push({ id: file.id, ok: entry.ok, rows: entry.rows, notes: entry.notes ?? [] });
       const payload = entry.payload;
       if (payload.kind === "house_state") {
-        for (const day of payload.days) days.push(day);
+        for (const day of payload.days) keepDay(day);
       } else if (payload.kind === "provisional") {
         for (const [month, bucket] of Object.entries(payload.months ?? {})) {
           const target = provisionalMonths[month] ?? { revenue: 0, nights: 0 };
