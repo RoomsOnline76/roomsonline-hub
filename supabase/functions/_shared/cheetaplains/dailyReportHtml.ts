@@ -8,7 +8,7 @@
  */
 
 import { pdfDocumentTitle } from "../revenueReportHtml.ts";
-import type { DailyFigures } from "./dailyDetailed.ts";
+import type { DailyFigures, DailyMovement } from "./dailyDetailed.ts";
 import type { DailyGridRow, DailyYearGrid } from "./daySheetGrid.ts";
 
 export interface DailyReportBranding {
@@ -403,7 +403,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   ${movementTable}
   ${options.emailNotes ? `<h2>From the day's email</h2><div class="email">${esc(options.emailNotes)}</div>` : ""}
   ${options.note ? `<div class="note">${esc(options.note)}</div>` : ""}
-  <div class="note">Figures without a source in the day's exports print as a dash. Enquiries are provisional business and are not counted in revenue on the books.</div>
+  <div class="note">Figures without a source in the day's exports print as a dash. Confirmed and provisional reservations are shown apart: provisional business is not yet secured and many never confirm. Enquiries are provisional business and are not counted in revenue on the books.</div>
 
   <div class="footer">
     <span>${esc(documentTitle)}</span>
