@@ -410,11 +410,24 @@ export async function appendDaySheet(
   try {
     const sharedFile = zip.file("xl/sharedStrings.xml");
     const sharedXml = sharedFile ? await sharedFile.async("string") : "";
+    // Budget, same-time-last-year and last-year figures are seed data that does
+    // not move day to day. Where the day's own sheet holds only a formula, a few
+    // earlier day sheets are read so those columns print their real figures.
+    const seedSheets: string[] = [];
+    for (const entry of entries) {
+      if (seedSheets.length >= 3) break;
+      if (entry.name === sheetName || entry.name === template.name) continue;
+      if (!DAY_SHEET.test(entry.name)) continue;
+      const path = relationshipTarget(relsXml, entry.rid);
+      const file = path ? zip.file(path) : null;
+      if (file) seedSheets.push(await file.async("string"));
+    }
     yearGrids = readYearGrids(
       result.xml,
-      templateXml,
-      labelStrings(sharedXml, [result.xml, templateXml]),
+      [templateXml, ...seedSheets],
+      labelStrings(sharedXml, [result.xml, templateXml, ...seedSheets]),
     );
+    seedSheets.length = 0;
   } catch (error) {
     notes.push(
       `The day sheet's financial form could not be read for the report (${
