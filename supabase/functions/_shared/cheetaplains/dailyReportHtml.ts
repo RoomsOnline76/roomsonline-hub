@@ -87,8 +87,17 @@ const shortRand = (value: number | null): string => {
 const variance = (row: DailyGridRow): number | null =>
   row.bob === null || row.budget === null ? null : row.bob - row.budget;
 
+/**
+ * A closed financial year is kept only as a comparison, and most of those years
+ * carry no budget at all, so the budget pair is printed only for a year that
+ * actually has one.
+ */
+const hasBudget = (grid: DailyYearGrid): boolean =>
+  grid.rows.some((entry) => entry.budget !== null && entry.budget !== 0);
+
 /** One financial year's month rows, quarters and total, as the workbook has it. */
 const yearTable = (grid: DailyYearGrid): string => {
+  const budget = hasBudget(grid);
   const body = grid.rows
     .map((entry) => {
       const cls = entry.kind === "month" ? "" : ` class="sum"`;
@@ -96,8 +105,7 @@ const yearTable = (grid: DailyYearGrid): string => {
         esc(entry.label),
         shortRand(entry.bob),
         pct(entry.occupancy),
-        shortRand(entry.budget),
-        shortRand(variance(entry)),
+        ...(budget ? [shortRand(entry.budget), shortRand(variance(entry))] : []),
         shortRand(entry.stly),
         pct(entry.stlyOccupancy),
         shortRand(entry.lastYear),
@@ -106,8 +114,18 @@ const yearTable = (grid: DailyYearGrid): string => {
       return `<tr${cls}>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
     })
     .join("");
+  const head = [
+    "Month",
+    "On the books",
+    "Occ %",
+    ...(budget ? ["Budget", "Vs budget"] : []),
+    "STLY",
+    "Occ STLY",
+    "Last year",
+    "Occ LY",
+  ];
   return `<table class="grid dense">
-  ${row(["Month", "On the books", "Occ %", "Budget", "Vs budget", "STLY", "Occ STLY", "Last year", "Occ LY"], true)}
+  ${row(head, true)}
   ${body}
 </table>`;
 };
@@ -128,7 +146,9 @@ const yearChart = (grid: DailyYearGrid, primary: string): string => {
   if (months.length === 0) return "";
   const series: ChartSeries[] = [
     { name: "On the books", colour: primary, values: months.map((entry) => entry.bob) },
-    { name: "Budget", colour: "#9CA3AF", values: months.map((entry) => entry.budget) },
+    ...(hasBudget(grid)
+      ? [{ name: "Budget", colour: "#9CA3AF", values: months.map((entry) => entry.budget) }]
+      : []),
     { name: "Same time last year", colour: "#0EA5A4", values: months.map((entry) => entry.stly) },
   ];
 
