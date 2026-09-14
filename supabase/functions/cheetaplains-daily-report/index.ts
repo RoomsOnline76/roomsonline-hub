@@ -512,7 +512,28 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const pasted = parsePastedEmail(extraInputs?.free_commentary ?? null);
 
-    const days: ProtelDay[] = [];
+    // A run often carries several House State prints, and a re-print of the
+    // same month supersedes the earlier one. Keeping both would double the
+    // month, and letting an empty print win would zero a day that was sold, so
+    // each date is kept once: a row carrying figures beats an all-zero row, and
+    // otherwise the most recently uploaded file wins.
+    const dayByDate = new Map<string, ProtelDay>();
+    const supersededDates: string[] = [];
+    const carriesFigures = (day: ProtelDay): boolean =>
+      (day.roomsOccupied ?? 0) > 0 ||
+      (day.accommodation ?? 0) > 0 ||
+      (day.total ?? 0) > 0 ||
+      (day.arrivalRooms ?? 0) > 0 ||
+      (day.departureRooms ?? 0) > 0;
+    const keepDay = (day: ProtelDay): void => {
+      const existing = dayByDate.get(day.date);
+      if (existing) {
+        supersededDates.push(day.date);
+        if (carriesFigures(existing) && !carriesFigures(day)) return;
+      }
+      dayByDate.set(day.date, day);
+    };
+
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
     const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
     let created: DailyMovement | null = null;
@@ -526,7 +547,7 @@ Deno.serve(async (req) => {
       results.push({ id: file.id, ok: entry.ok, rows: entry.rows, notes: entry.notes ?? [] });
       const payload = entry.payload;
       if (payload.kind === "house_state") {
-        for (const day of payload.days) days.push(day);
+        for (const day of payload.days) keepDay(day);
       } else if (payload.kind === "provisional") {
         for (const [month, bucket] of Object.entries(payload.months ?? {})) {
           const target = provisionalMonths[month] ?? { revenue: 0, nights: 0 };
@@ -546,6 +567,15 @@ Deno.serve(async (req) => {
         cancelled = payload.movement;
       }
     }
+
+    const days: ProtelDay[] = [...dayByDate.values()].sort((left, right) =>
+      left.date.localeCompare(right.date),
+    );
+    const dayNotes = supersededDates.length
+      ? [
+        `${supersededDates.length} day(s) appear in more than one House State export — the print carrying figures was used`,
+      ]
+      : [];
 
     // Enquiries: the tracker's provisional sheet when the run carries it,
     // otherwise whatever a reservation-style provisional export gave.
@@ -615,7 +645,7 @@ Deno.serve(async (req) => {
     // workbook on the run replaces whatever was stored before.
     const primary = (settings?.brand_primary ?? "#1A1A2E").replace("#", "");
     const workbookPath = `${run.property_id}/daily/daily-detailed-report.xlsx`;
-    const workbookNotes: string[] = [];
+    const workbookNotes: string[] = [...dayNotes];
     let workbookBytes: Uint8Array | null = null;
     let sheetName = daySheetName(asOf);
     let yearGrids: DailyYearGrid[] = [];
