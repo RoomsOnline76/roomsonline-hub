@@ -13,11 +13,20 @@ export interface DailyPeriodFigures {
   adr: number | null;
 }
 
+export interface DailyMovementStatus {
+  /** As printed on the export: Confirmed, Provisional, Waitlist, … */
+  label: string;
+  count: number;
+  nights: number;
+}
+
 export interface DailyMovement {
   count: number;
   value: number | null;
   nights: number | null;
   period: { from: string; to: string } | null;
+  /** Split by reservation status; confirmed and provisional stay apart. */
+  statuses?: DailyMovementStatus[];
 }
 
 export interface DailyFigures {

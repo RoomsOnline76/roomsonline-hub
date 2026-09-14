@@ -84,7 +84,11 @@ export function StageDailyReview({ ctx }: { ctx: RunBuilderContext }) {
               <Stat label="Month to date" value={rand(figures.monthToDate.revenue)} hint={`${num(figures.monthToDate.nights)} villa nights`} />
               <Stat label="Month on the books" value={rand(figures.monthOnBooks.revenue)} hint={pct(figures.monthOnBooks.occupancy)} />
               <Stat label="Active enquiries" value={rand(figures.enquiries?.revenue ?? null)} hint={`${num(figures.enquiries?.nights ?? null)} nights`} />
-              <Stat label="Bookings created" value={num(figures.created?.count ?? null)} hint={rand(figures.created?.value ?? null)} />
+              <Stat
+                label="Bookings created"
+                value={num(figures.created?.count ?? null)}
+                hint={statusHint(figures.created?.statuses) ?? rand(figures.created?.value ?? null)}
+              />
               <Stat label="Bookings cancelled" value={num(figures.cancelled?.count ?? null)} hint={`${num(figures.cancelled?.nights ?? null)} nights`} />
               <Stat label="Month-to-date ADR" value={rand(figures.monthToDate.adr)} />
             </CardContent>
