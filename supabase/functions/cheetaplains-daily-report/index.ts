@@ -61,6 +61,8 @@ const FILES_PER_BATCH = 1;
 const MAX_FILE_ATTEMPTS = 2;
 /** Rows sampled to recognise a sheet before the whole grid is converted. */
 const PROBE_ROWS = 40;
+/** A normal team master is about 11 MB; above this, recover from the clean uploaded master. */
+const OVERSIZED_RUNNING_WORKBOOK = 25_000_000;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -612,7 +614,43 @@ Deno.serve(async (req) => {
 
     const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
     if (basePath) {
-      const base = await admin.storage.from(BUCKET).download(basePath);
+      let resolvedBasePath = basePath;
+      let base = await admin.storage.from(BUCKET).download(resolvedBasePath);
+      if (
+        !uploadedWorkbookPath &&
+        base.data &&
+        base.data.size > OVERSIZED_RUNNING_WORKBOOK
+      ) {
+        const recoveryPath = `${run.property_id}/daily/recovery/daily-detailed-report-${runId}.xlsx`;
+        const backup = await admin.storage.from(BUCKET).copy(resolvedBasePath, recoveryPath);
+        if (backup.error && !/already exists/i.test(backup.error.message)) {
+          return json({ error: `The oversized workbook could not be backed up: ${backup.error.message}` }, 500);
+        }
+        const { data: propertyRuns } = await admin
+          .from("report_runs")
+          .select("id")
+          .eq("property_id", run.property_id)
+          .order("as_of_date", { ascending: true });
+        const propertyRunIds = (propertyRuns ?? []).map((entry) => entry.id);
+        const { data: sourceCandidates } = propertyRunIds.length
+          ? await admin
+            .from("report_source_files")
+            .select("storage_path, original_filename")
+            .in("run_id", propertyRunIds)
+            .order("created_at", { ascending: true })
+          : { data: [] };
+        const cleanMasterPath = (sourceCandidates ?? []).find((file) =>
+          isRunningWorkbook(file.original_filename ?? "") && file.storage_path !== resolvedBasePath
+        )?.storage_path ?? null;
+        if (!cleanMasterPath) {
+          return json({ error: "The running workbook is oversized and no clean master is available; it was preserved" }, 500);
+        }
+        resolvedBasePath = cleanMasterPath;
+        base = await admin.storage.from(BUCKET).download(resolvedBasePath);
+        workbookNotes.push(
+          `The ${Math.round((basePath === settings?.daily_workbook_path ? 49.6 : 0) * 10) / 10} MB oversized workbook was backed up and the clean team master was restored`,
+        );
+      }
       if (base.error || !base.data) {
         workbookNotes.push(
           `The running workbook could not be opened (${base.error?.message ?? "download failed"})`,
