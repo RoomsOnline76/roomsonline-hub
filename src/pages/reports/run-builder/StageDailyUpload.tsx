@@ -98,7 +98,7 @@ export function StageDailyUpload({ ctx }: { ctx: RunBuilderContext }) {
             Drop the villa-state exports, the provisional bookings export and the created /
             cancelled reservation prints for the day. Spreadsheets and PDFs are both accepted.
           </p>
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted p-3">
             <p className="text-sm text-muted-foreground">
               Need to rework the team workbook? Download the clean compact sample, then upload it with the day's files.
             </p>
