@@ -88,24 +88,40 @@ const monthLabel = (serial: number | null): string | null => {
 /**
  * Pulls every financial-year block off one day sheet.
  *
- * `templateXml` is the sheet the day was copied from and is only consulted for
- * values the appended sheet no longer caches.
+ * `templateXml` is the sheet (or sheets) the day was copied from, consulted in
+ * order for values the appended sheet no longer caches. Budget and last-year
+ * columns do not move day to day, so an earlier day sheet fills the seed
+ * figures a formula-only cell would otherwise print as a dash.
  */
 export function readYearGrids(
   sheetXml: string,
-  templateXml: string | null,
+  templateXml: string | string[] | null,
   sharedStrings: string[],
 ): DailyYearGrid[] {
   const current = cellMap(sheetXml);
-  const fallback = templateXml ? cellMap(templateXml) : new Map<string, RawCell>();
+  const others = (Array.isArray(templateXml) ? templateXml : templateXml ? [templateXml] : [])
+    .filter((xml) => xml.length > 0)
+    .map((xml) => cellMap(xml));
 
   const value = (column: string, rowNumber: number): number | null => {
     const ref = `${column}${rowNumber}`;
-    return numberAt(current.get(ref)) ?? numberAt(fallback.get(ref));
+    const own = numberAt(current.get(ref));
+    if (own !== null) return own;
+    for (const sheet of others) {
+      const found = numberAt(sheet.get(ref));
+      if (found !== null) return found;
+    }
+    return null;
   };
-  const label = (rowNumber: number): string | null =>
-    textAt(current.get(`A${rowNumber}`), sharedStrings) ??
-    textAt(fallback.get(`A${rowNumber}`), sharedStrings);
+  const label = (rowNumber: number): string | null => {
+    const own = textAt(current.get(`A${rowNumber}`), sharedStrings);
+    if (own !== null) return own;
+    for (const sheet of others) {
+      const found = textAt(sheet.get(`A${rowNumber}`), sharedStrings);
+      if (found !== null) return found;
+    }
+    return null;
+  };
 
   const lastRow = Math.max(
     0,
