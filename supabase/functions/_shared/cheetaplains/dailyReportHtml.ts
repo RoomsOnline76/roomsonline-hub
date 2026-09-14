@@ -8,7 +8,7 @@
  */
 
 import { pdfDocumentTitle } from "../revenueReportHtml.ts";
-import type { DailyFigures } from "./dailyDetailed.ts";
+import type { DailyFigures, DailyMovement } from "./dailyDetailed.ts";
 import type { DailyGridRow, DailyYearGrid } from "./daySheetGrid.ts";
 
 export interface DailyReportBranding {
@@ -199,6 +199,27 @@ export interface DailyReportResult {
   documentTitle: string;
 }
 
+/**
+ * The status split under a movement line. Confirmed and provisional business is
+ * never added together — most provisionals never confirm — so the print keeps
+ * one indented line per reservation status the export carried. A print with a
+ * single status (every row on the cancelled print reads `Cancelled`) adds
+ * nothing and is left off.
+ */
+const statusRows = (movement: DailyMovement | null): string => {
+  const statuses = movement?.statuses ?? [];
+  if (statuses.length < 2) return "";
+  return statuses
+    .map((status) =>
+      row([
+        `<span class="sub">of which ${esc(status.label.toLowerCase())}</span>`,
+        num(status.count),
+        `${num(status.nights)} nights`,
+      ]),
+    )
+    .join("\n  ");
+};
+
 
 export function buildDailyReportHtml(options: DailyReportOptions): DailyReportResult {
   const { propertyName, figures, branding } = options;
@@ -245,6 +266,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
       ? rand(figures.created.value)
       : num(figures.created?.nights ?? null),
   ])}
+  ${statusRows(figures.created)}
   ${row([
     "Reservations cancelled",
     num(figures.cancelled?.count ?? null),
@@ -252,6 +274,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
       ? rand(figures.cancelled.value)
       : `${num(figures.cancelled?.nights ?? null)} nights`,
   ])}
+  ${statusRows(figures.cancelled)}
   ${row([
     "Active enquiries on the books",
     num(figures.enquiries?.nights ?? null),
@@ -380,7 +403,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   ${movementTable}
   ${options.emailNotes ? `<h2>From the day's email</h2><div class="email">${esc(options.emailNotes)}</div>` : ""}
   ${options.note ? `<div class="note">${esc(options.note)}</div>` : ""}
-  <div class="note">Figures without a source in the day's exports print as a dash. Enquiries are provisional business and are not counted in revenue on the books.</div>
+  <div class="note">Figures without a source in the day's exports print as a dash. Confirmed and provisional reservations are shown apart: provisional business is not yet secured and many never confirm. Enquiries are provisional business and are not counted in revenue on the books.</div>
 
   <div class="footer">
     <span>${esc(documentTitle)}</span>

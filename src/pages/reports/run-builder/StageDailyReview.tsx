@@ -1,7 +1,7 @@
 import { Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DailyFigures } from "@/hooks/useDailyDetailedReport";
+import type { DailyFigures, DailyMovementStatus } from "@/hooks/useDailyDetailedReport";
 import type { RunBuilderContext } from "./types";
 
 const rand = (value: number | null | undefined): string =>
@@ -16,6 +16,12 @@ const pct = (value: number | null | undefined): string =>
 
 const num = (value: number | null | undefined): string =>
   value === null || value === undefined || !Number.isFinite(value) ? "—" : String(value);
+
+/** "3 provisional · 1 confirmed" — provisional business is never merged in. */
+const statusHint = (statuses: DailyMovementStatus[] | undefined): string | undefined =>
+  statuses && statuses.length > 1
+    ? statuses.map((s) => `${s.count} ${s.label.toLowerCase()}`).join(" · ")
+    : undefined;
 
 const Stat = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
   <div className="rounded-md border px-3 py-2.5">
@@ -84,7 +90,11 @@ export function StageDailyReview({ ctx }: { ctx: RunBuilderContext }) {
               <Stat label="Month to date" value={rand(figures.monthToDate.revenue)} hint={`${num(figures.monthToDate.nights)} villa nights`} />
               <Stat label="Month on the books" value={rand(figures.monthOnBooks.revenue)} hint={pct(figures.monthOnBooks.occupancy)} />
               <Stat label="Active enquiries" value={rand(figures.enquiries?.revenue ?? null)} hint={`${num(figures.enquiries?.nights ?? null)} nights`} />
-              <Stat label="Bookings created" value={num(figures.created?.count ?? null)} hint={rand(figures.created?.value ?? null)} />
+              <Stat
+                label="Bookings created"
+                value={num(figures.created?.count ?? null)}
+                hint={statusHint(figures.created?.statuses) ?? rand(figures.created?.value ?? null)}
+              />
               <Stat label="Bookings cancelled" value={num(figures.cancelled?.count ?? null)} hint={`${num(figures.cancelled?.nights ?? null)} nights`} />
               <Stat label="Month-to-date ADR" value={rand(figures.monthToDate.adr)} />
             </CardContent>
