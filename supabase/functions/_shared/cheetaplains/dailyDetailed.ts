@@ -286,6 +286,7 @@ export function parsePastedEmail(raw: string | null | undefined): PastedEmail {
         value: value ? money(value[1]) : null,
         nights: null,
         period: null,
+        statuses: [],
       };
     }
     return null;
