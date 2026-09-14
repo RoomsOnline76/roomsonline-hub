@@ -512,6 +512,28 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const pasted = parsePastedEmail(extraInputs?.free_commentary ?? null);
 
+    // A run often carries several House State prints, and a re-print of the
+    // same month supersedes the earlier one. Keeping both would double the
+    // month, and letting an empty print win would zero a day that was sold, so
+    // each date is kept once: a row carrying figures beats an all-zero row, and
+    // otherwise the most recently uploaded file wins.
+    const dayByDate = new Map<string, ProtelDay>();
+    const supersededDates: string[] = [];
+    const carriesFigures = (day: ProtelDay): boolean =>
+      (day.roomsOccupied ?? 0) > 0 ||
+      (day.accommodation ?? 0) > 0 ||
+      (day.total ?? 0) > 0 ||
+      (day.arrivalRooms ?? 0) > 0 ||
+      (day.departureRooms ?? 0) > 0;
+    const keepDay = (day: ProtelDay): void => {
+      const existing = dayByDate.get(day.date);
+      if (existing) {
+        supersededDates.push(day.date);
+        if (carriesFigures(existing) && !carriesFigures(day)) return;
+      }
+      dayByDate.set(day.date, day);
+    };
+
     const days: ProtelDay[] = [];
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
     const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
