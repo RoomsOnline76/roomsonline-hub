@@ -93,6 +93,7 @@ export default function ReportsRunReview() {
     storedDay,
     emailText: dailyEmailText,
     saveEmailText: onSaveDailyEmailText,
+    downloadSample: onDownloadDailySample,
   } = useDailyDetailedReport(runId, run?.propertyId, run?.asOfDate);
   const dailyFigures = dailyResult?.figures ?? storedDay;
   const stages = useMemo(() => stagesForKind(run?.reportKind), [run?.reportKind]);
@@ -499,6 +500,7 @@ export default function ReportsRunReview() {
     dailyProgress,
     dailyEmailText,
     onSaveDailyEmailText,
+    onDownloadDailySample,
   };
 
 

@@ -203,6 +203,33 @@ Deno.serve(async (req) => {
     const files = (fileRows ?? []) as FileRow[];
     if (!files.length) return json({ error: "This run has no uploaded files yet" }, 409);
 
+    if (mode === "sample") {
+      const currentSample = files.find((file) => isRunningWorkbook(file.original_filename ?? ""));
+      let samplePath = currentSample?.storage_path ?? null;
+      if (!samplePath) {
+        const { data: sampleRuns } = await admin
+          .from("report_runs")
+          .select("id")
+          .eq("property_id", run.property_id)
+          .order("as_of_date", { ascending: true });
+        const runIds = (sampleRuns ?? []).map((entry) => entry.id);
+        if (runIds.length) {
+          const { data: sampleFiles } = await admin
+            .from("report_source_files")
+            .select("storage_path, original_filename")
+            .in("run_id", runIds)
+            .order("created_at", { ascending: true });
+          samplePath = (sampleFiles ?? []).find((file) =>
+            isRunningWorkbook(file.original_filename ?? "")
+          )?.storage_path ?? null;
+        }
+      }
+      if (!samplePath) return json({ error: "No clean daily workbook sample is on file" }, 404);
+      const signed = await admin.storage.from(BUCKET).createSignedUrl(samplePath, 60 * 30);
+      if (signed.error) return json({ error: signed.error.message }, 500);
+      return json({ success: true, mode: "sample", sample_url: signed.data.signedUrl });
+    }
+
     /* ── parse a batch ───────────────────────────────────────────── */
 
     if (mode === "parse_batch") {
@@ -601,6 +628,13 @@ Deno.serve(async (req) => {
           const appended = await appendDaySheet(await base.data.arrayBuffer(), asOf, {
             provisionalByMonth,
           });
+          const baseSize = base.data.size;
+          const maximumExpectedSize = Math.max(baseSize * 2, baseSize + 5_000_000);
+          if (appended.bytes.byteLength > maximumExpectedSize) {
+            throw new Error(
+              `The rebuilt workbook grew unexpectedly (${appended.bytes.byteLength} bytes from ${baseSize}); the previous workbook was preserved`,
+            );
+          }
           workbookBytes = appended.bytes;
           sheetName = appended.sheetName;
           // The printed report carries the same financial form and graphs the
