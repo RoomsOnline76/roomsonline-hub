@@ -20,6 +20,7 @@
 
 import JSZip from "npm:jszip@3.10.1";
 import { readYearGrids, type DailyYearGrid } from "./daySheetGrid.ts";
+import { patchZip } from "../rawZipPatch.ts";
 
 const MONTHS = [
   "Jan",
@@ -253,6 +254,15 @@ export interface AppendDayResult {
   yearGrids: DailyYearGrid[];
 }
 
+/** Cheap integrity check used before a newly built workbook is promoted. */
+export async function workbookContainsDaySheet(bytes: Uint8Array, date: string): Promise<boolean> {
+  const zip = await JSZip.loadAsync(bytes);
+  const workbook = zip.file("xl/workbook.xml");
+  if (!workbook) return false;
+  const xml = await workbook.async("string");
+  return sheetEntries(xml).some((entry) => entry.name === daySheetName(date));
+}
+
 /**
  * Resolves only the shared strings the day sheet's label column points at.
  *
@@ -312,6 +322,9 @@ export async function appendDaySheet(
   let workbookXml = await workbookFile.async("string");
   let relsXml = await relsFile.async("string");
   let typesXml = await typesFile.async("string");
+  const replacements = new Map<string, Uint8Array>();
+  const removals = new Set<string>();
+  const encode = (value: string) => new TextEncoder().encode(value);
 
   const entries = sheetEntries(workbookXml);
   const existing = entries.find((entry) => entry.name === sheetName);
@@ -324,13 +337,15 @@ export async function appendDaySheet(
   if (!templatePath || !zip.file(templatePath)) {
     throw new Error(`Sheet ${template.name} could not be read from the workbook`);
   }
-  let templateXml = await zip.file(templatePath)!.async("string");
+  const templateFile = zip.file(templatePath);
+  if (!templateFile) throw new Error(`Sheet ${template.name} could not be read from the workbook`);
+  let templateXml = await templateFile.async("string");
   const result = patchDaySheet(templateXml, patch);
 
   if (existing) {
     const existingPath = relationshipTarget(relsXml, existing.rid);
     if (!existingPath) throw new Error(`Sheet ${sheetName} could not be located`);
-    zip.file(existingPath, result.xml);
+    replacements.set(existingPath, encode(result.xml));
     notes.push(`${sheetName} already existed and was rebuilt from ${template.name}`);
   } else {
     // A brand-new part, relationship, sheet entry and content type.
@@ -347,7 +362,7 @@ export async function appendDaySheet(
     const rid = `rId${Math.max(0, ...ridNumbers) + 1}`;
     const sheetId = Math.max(0, ...entries.map((entry) => entry.sheetId)) + 1;
 
-    zip.file(path, result.xml);
+    replacements.set(path, encode(result.xml));
     relsXml = relsXml.replace(
       "</Relationships>",
       `<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index}.xml"/></Relationships>`,
@@ -377,7 +392,7 @@ export async function appendDaySheet(
     );
   }
   if (zip.file("xl/calcChain.xml")) {
-    zip.remove("xl/calcChain.xml");
+    removals.add("xl/calcChain.xml");
     typesXml = typesXml.replace(
       /<Override PartName="\/xl\/calcChain\.xml"[^>]*\/>/,
       "",
@@ -385,9 +400,9 @@ export async function appendDaySheet(
     relsXml = relsXml.replace(/<Relationship[^>]*calcChain\.xml"[^>]*\/>/, "");
   }
 
-  zip.file("xl/workbook.xml", workbookXml);
-  zip.file("xl/_rels/workbook.xml.rels", relsXml);
-  zip.file("[Content_Types].xml", typesXml);
+  replacements.set("xl/workbook.xml", encode(workbookXml));
+  replacements.set("xl/_rels/workbook.xml.rels", encode(relsXml));
+  replacements.set("[Content_Types].xml", encode(typesXml));
 
   // The printed financial form is read before the workbook is rebuilt, so the
   // sheet XML can be released before the multi-megabyte zip is written.
@@ -410,14 +425,10 @@ export async function appendDaySheet(
   templateXml = "";
   result.xml = "";
 
-  // Do not deflate the 380-odd unchanged sheets again. Recompression is CPU
-  // bound and exhausts the edge worker even at level 1; STORE trades a larger
-  // upload for a predictable, short build. This mirrors the repair path used
-  // for large protel workbooks.
-  const bytes = (await zip.generateAsync({
-    type: "uint8array",
-    compression: "STORE",
-  })) as Uint8Array;
+  // Byte-copy unchanged compressed members. JSZip's generateAsync expands or
+  // recompresses the entire 380-sheet archive and eventually exceeds the edge
+  // worker limit as the running workbook grows.
+  const bytes = patchZip(base, replacements, removals);
 
   return {
     bytes,

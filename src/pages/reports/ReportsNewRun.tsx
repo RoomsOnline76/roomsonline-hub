@@ -112,15 +112,25 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       return {
         ...state,
         asOfDate: action.value,
-        title: state.titleEdited ? state.title : defaultTitle(action.value, state.cadence),
+        title: state.titleEdited
+          ? state.title
+          : defaultTitle(action.value, state.cadence, state.reportKind),
       };
     case "reportKind":
-      return { ...state, reportKind: action.value };
+      return {
+        ...state,
+        reportKind: action.value,
+        title: state.titleEdited
+          ? state.title
+          : defaultTitle(state.asOfDate, state.cadence, action.value),
+      };
     case "cadence":
       return {
         ...state,
         cadence: action.value,
-        title: state.titleEdited ? state.title : defaultTitle(state.asOfDate, action.value),
+        title: state.titleEdited
+          ? state.title
+          : defaultTitle(state.asOfDate, action.value, state.reportKind),
       };
     case "specialSet":
       return { ...state, specialSet: action.value };
@@ -233,7 +243,8 @@ export default function ReportsNewRun() {
       const runId = await createRun.mutateAsync({
         propertyId: state.property.id,
         asOfDate: state.asOfDate,
-        title: state.title.trim() || defaultTitle(state.asOfDate, state.cadence),
+        title:
+          state.title.trim() || defaultTitle(state.asOfDate, state.cadence, state.reportKind),
         sourceType: state.sourceType,
         cadence: state.cadence,
         reportKind: state.reportKind,
@@ -286,7 +297,9 @@ export default function ReportsNewRun() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">New report</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {state.reportKind === "daily_detailed" ? "New daily detailed report" : "New report"}
+        </h1>
         <p className="text-sm text-muted-foreground">
           Select a property, set the as-of date and upload the source files.
         </p>
@@ -391,7 +404,9 @@ export default function ReportsNewRun() {
       {state.step === 2 && state.property && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Run details</CardTitle>
+            <CardTitle className="text-base font-medium">
+              {state.reportKind === "daily_detailed" ? "Daily report details" : "Run details"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-center gap-3 rounded-md border px-3 py-2.5">
@@ -433,7 +448,7 @@ export default function ReportsNewRun() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
+              {state.reportKind !== "daily_detailed" && <div className="space-y-2">
                 <Label htmlFor="as-of-date">As-of date</Label>
                 <Input
                   id="as-of-date"
@@ -444,7 +459,7 @@ export default function ReportsNewRun() {
                 <p className="text-xs text-muted-foreground">
                   The date the on-the-books snapshot is taken.
                 </p>
-              </div>
+              </div>}
               {ownerSlidesOffered && (
                 <div className="space-y-2">
                   <Label>Report to build</Label>

@@ -170,7 +170,9 @@ export function parseProvisionalGrid(grid: Grid, filename: string): ProvisionalP
       continue;
     }
 
-    const total = numeric(row[columns.total!]);
+    const totalColumn = columns.total;
+    if (totalColumn === undefined) continue;
+    const total = numeric(row[totalColumn]);
     const perNight = total / nights;
     const start = Date.parse(`${arrival}T00:00:00Z`);
     for (let night = 0; night < nights; night += 1) {

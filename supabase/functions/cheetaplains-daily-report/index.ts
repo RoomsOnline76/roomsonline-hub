@@ -23,6 +23,7 @@ import {
   isProvisionalGrid,
   parseProvisionalGrid,
 } from "../_shared/cheetaplains/provisional.ts";
+import { parseProvisionalOoxml } from "../_shared/cheetaplains/provisionalOoxml.ts";
 import {
   isPipelineGrid,
   parsePipelineGrid,
@@ -37,7 +38,11 @@ import {
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
-import { appendDaySheet, daySheetName } from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
+import {
+  appendDaySheet,
+  daySheetName,
+  workbookContainsDaySheet,
+} from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
 import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
 import {
 
@@ -51,9 +56,7 @@ const BUCKET = "revenue-reports";
  * Workbooks read per `parse_batch` call. One at a time: the provisional export
  * is far larger than a House State day and three of them exhaust the worker.
  */
-const WORKBOOKS_PER_BATCH = 1;
-/** PDF text extraction is the most expensive read, so one per call. */
-const PDFS_PER_BATCH = 1;
+const FILES_PER_BATCH = 1;
 /** A file that exhausts the worker this many times is skipped with a note. */
 const MAX_FILE_ATTEMPTS = 2;
 /** Rows sampled to recognise a sheet before the whole grid is converted. */
@@ -219,8 +222,6 @@ Deno.serve(async (req) => {
         .eq("id", runId);
 
       const outstanding = files.filter((file) => !storedDaily(file));
-      let workbooks = 0;
-      let pdfs = 0;
       let parsed = 0;
 
       for (const file of outstanding) {
@@ -228,8 +229,7 @@ Deno.serve(async (req) => {
         const isPdf = /\.pdf$/i.test(filename);
         const running = isRunningWorkbook(filename);
         const heavy = !running && isDailyFile(filename);
-        if (heavy && isPdf && pdfs >= PDFS_PER_BATCH) continue;
-        if (heavy && !isPdf && workbooks >= WORKBOOKS_PER_BATCH) continue;
+        if (parsed >= FILES_PER_BATCH) continue;
 
         const notes: string[] = [];
         let entry: StoredDaily = { payload: { kind: "skipped" }, notes, ok: true, rows: 0 };
@@ -244,9 +244,6 @@ Deno.serve(async (req) => {
         } else if (!heavy) {
           notes.push(`${filename}: monthly export — not used by the daily report`);
         } else {
-          if (isPdf) pdfs += 1;
-          else workbooks += 1;
-
           // A file that kills the worker leaves no result behind, so the next
           // call would pick it first and die again. Count the attempt before
           // reading it and give up on it once it has had its chances.
@@ -307,6 +304,30 @@ Deno.serve(async (req) => {
                   notes: [
                     `${filename}: unreadable PDF (${error instanceof Error ? error.message : "unknown"})`,
                   ],
+                  ok: false,
+                  rows: 0,
+                };
+              }
+            } else if (/provisional|enquir|tentative|option/i.test(filename)) {
+              try {
+                const provisional = await parseProvisionalOoxml(buffer, filename);
+                entry = provisional
+                  ? {
+                    payload: { kind: "provisional", months: provisional.months },
+                    notes: [...provisional.errors, ...provisional.warnings],
+                    ok: provisional.rowsRead > 0,
+                    rows: provisional.rowsRead,
+                  }
+                  : {
+                    payload: { kind: "skipped" },
+                    notes: [`${filename}: no provisional-bookings sheet recognised — skipped`],
+                    ok: false,
+                    rows: 0,
+                  };
+              } catch (error) {
+                entry = {
+                  payload: { kind: "skipped" },
+                  notes: [`${filename}: unreadable provisional workbook (${error instanceof Error ? error.message : "unknown"})`],
                   ok: false,
                   rows: 0,
                 };
@@ -467,7 +488,8 @@ Deno.serve(async (req) => {
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
     for (const file of files) {
-      const entry = storedDaily(file)!;
+      const entry = storedDaily(file);
+      if (!entry) continue;
       results.push({ id: file.id, ok: entry.ok, rows: entry.rows, notes: entry.notes ?? [] });
       const payload = entry.payload;
       if (payload.kind === "house_state") {
@@ -617,13 +639,29 @@ Deno.serve(async (req) => {
       ? workbookPath
       : `${run.property_id}/daily/daily-detailed-${asOf}-plain.xlsx`;
 
+    if (appendedToRunningWorkbook && !(await workbookContainsDaySheet(workbookBytes, asOf))) {
+      return json({ error: `The rebuilt workbook did not contain ${sheetName}; the previous workbook was preserved` }, 500);
+    }
+    const versionedWorkbookPath = appendedToRunningWorkbook
+      ? `${run.property_id}/daily/versions/${runId}-${asOf}.xlsx`
+      : outputWorkbookPath;
     const workbookUpload = await admin.storage
       .from(BUCKET)
-      .upload(outputWorkbookPath, workbookBytes, {
+      .upload(versionedWorkbookPath, workbookBytes, {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         upsert: true,
       });
     if (workbookUpload.error) return json({ error: workbookUpload.error.message }, 500);
+
+    if (appendedToRunningWorkbook) {
+      const promotion = await admin.storage.from(BUCKET).copy(versionedWorkbookPath, workbookPath);
+      if (promotion.error) {
+        const overwrite = await admin.storage.from(BUCKET).update(workbookPath, workbookBytes, {
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        if (overwrite.error) return json({ error: overwrite.error.message }, 500);
+      }
+    }
 
 
     const report = buildDailyReportHtml({
