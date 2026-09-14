@@ -601,17 +601,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // The team's running workbook must never be replaced by the plain fallback:
+    // that would destroy the accumulated day sheets and lock every later run
+    // into the bare format. The fallback is written beside it instead.
+    const appendedToRunningWorkbook = workbookBytes !== null;
     if (!workbookBytes) {
       // Nothing to append to: fall back to the plain day-per-row workbook so the
       // run still produces a spreadsheet.
       workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
+      workbookNotes.push(
+        "A plain day-per-row spreadsheet was produced instead — the team's running workbook on file was left untouched",
+      );
     }
+    const outputWorkbookPath = appendedToRunningWorkbook
+      ? workbookPath
+      : `${run.property_id}/daily/daily-detailed-${asOf}-plain.xlsx`;
 
-    const workbookUpload = await admin.storage.from(BUCKET).upload(workbookPath, workbookBytes, {
-      contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      upsert: true,
-    });
+    const workbookUpload = await admin.storage
+      .from(BUCKET)
+      .upload(outputWorkbookPath, workbookBytes, {
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        upsert: true,
+      });
     if (workbookUpload.error) return json({ error: workbookUpload.error.message }, 500);
+
 
     const report = buildDailyReportHtml({
       propertyName,
@@ -634,16 +647,18 @@ Deno.serve(async (req) => {
       });
     if (htmlUpload.error) return json({ error: htmlUpload.error.message }, 500);
 
-    await admin
-      .from("property_report_settings")
-      .upsert(
-        {
-          property_id: run.property_id,
-          daily_workbook_path: workbookPath,
-          daily_workbook_updated_at: new Date().toISOString(),
-        },
-        { onConflict: "property_id" },
-      );
+    if (appendedToRunningWorkbook) {
+      await admin
+        .from("property_report_settings")
+        .upsert(
+          {
+            property_id: run.property_id,
+            daily_workbook_path: workbookPath,
+            daily_workbook_updated_at: new Date().toISOString(),
+          },
+          { onConflict: "property_id" },
+        );
+    }
 
     await admin
       .from("report_runs")
@@ -651,12 +666,13 @@ Deno.serve(async (req) => {
         status: "ready",
         processing_note: null,
         error_message: null,
-        excel_path: workbookPath,
+        excel_path: outputWorkbookPath,
         excel_generated_at: new Date().toISOString(),
         draft_report_path: htmlPath,
         draft_generated_at: new Date().toISOString(),
       })
       .eq("id", runId);
+
 
     await logRunEvent(
       admin,
@@ -673,7 +689,7 @@ Deno.serve(async (req) => {
     );
 
     const [workbookSigned, htmlSigned] = await Promise.all([
-      admin.storage.from(BUCKET).createSignedUrl(workbookPath, 60 * 30),
+      admin.storage.from(BUCKET).createSignedUrl(outputWorkbookPath, 60 * 30),
       admin.storage.from(BUCKET).createSignedUrl(htmlPath, 60 * 30),
     ]);
 
@@ -689,7 +705,7 @@ Deno.serve(async (req) => {
       pipeline,
       files: results,
       excel_url: workbookSigned.data?.signedUrl ?? null,
-      excel_path: workbookPath,
+      excel_path: outputWorkbookPath,
       report_url: htmlSigned.data?.signedUrl ?? null,
       report_path: htmlPath,
       document_title: report.documentTitle,
