@@ -262,6 +262,25 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     warnings.push(`${filename}: no Total row found — daily rows could not be reconciled`);
   }
 
+  // A print with no rooms sold and no revenue anywhere is almost always the
+  // wrong export (wrong hotel or filter), and it would otherwise zero a day
+  // that was really sold. It stays readable, but the run says so.
+  if (
+    days.length > 0 &&
+    days.every(
+      (day) =>
+        day.roomsOccupied === 0 &&
+        day.accommodation === 0 &&
+        day.total === 0 &&
+        day.arrivalRooms === 0 &&
+        day.departureRooms === 0,
+    )
+  ) {
+    warnings.push(
+      `${filename}: every day reads no rooms sold and no revenue — check this is the right export`,
+    );
+  }
+
   const months = new Set(days.map((day) => day.date.slice(0, 7)));
   if (months.size > 1) {
     warnings.push(`${filename}: covers more than one month (${[...months].sort().join(", ")})`);
