@@ -216,6 +216,12 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           </div>
           <p className="text-sm font-medium text-foreground">{title}</p>
           {body && <div className="space-y-2 text-sm text-muted-foreground">{body}</div>}
+          {isStaff && (diagnostic || loginEmail) && (
+            <p className="rounded border border-border bg-muted px-3 py-2 text-left text-xs font-mono text-muted-foreground">
+              {loginEmail ? `account ${loginEmail}` : "account unknown"}
+              {diagnostic ? ` · ${diagnostic}` : ""}
+            </p>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button
               variant="outline"
