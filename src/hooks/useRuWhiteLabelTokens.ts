@@ -18,6 +18,12 @@ interface TokenResponse {
   error?: string | null;
   /** True when the RU sub-user is connected and verified (setup is NOT the blocker). */
   sub_user_verified?: boolean | null;
+  /** Machine code behind a refusal, for staff diagnostics only. */
+  diagnostic?: string | null;
+  /** Distribution account login the frame signs in as. */
+  login_email?: string | null;
+  /** Whether the account covers a whole portfolio or a single property. */
+  scope?: "portfolio" | "property" | null;
 }
 
 
