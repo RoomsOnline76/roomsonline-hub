@@ -282,6 +282,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
         // redirects that cannot use a popup.
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation"
       />
+      </div>
     </div>
   );
 
