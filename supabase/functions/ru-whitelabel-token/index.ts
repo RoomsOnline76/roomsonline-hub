@@ -288,11 +288,15 @@ Deno.serve(async (req) => {
       account.ru_wl_refresh_token &&
       expiresAt > Date.now() + EXPIRY_SKEW_MS;
 
+    const scopeLabel = account.portfolio_id ? 'portfolio' : 'property';
+
     if (cachedValid) {
       return json({
         success: true,
         available: true,
         owner_id: ownerId,
+        login_email: account.ru_login_email ?? account.owner_email ?? null,
+        scope: scopeLabel,
         access_token: account.ru_wl_access_token,
         refresh_token: account.ru_wl_refresh_token,
         expires_at: account.ru_wl_token_expires_at,
