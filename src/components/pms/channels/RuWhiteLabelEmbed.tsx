@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Loader2, RefreshCw, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
+import { ChannelScopeHeader } from "@/components/pms/channels/ChannelScopeHeader";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
