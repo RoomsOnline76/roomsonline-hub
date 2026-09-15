@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Loader2, RefreshCw, Radio, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRuWhiteLabelTokens } from "@/hooks/useRuWhiteLabelTokens";
+import { ChannelScopeHeader } from "@/components/pms/channels/ChannelScopeHeader";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -30,8 +31,18 @@ const EMBED_BOOT_TIMEOUT_MS = 25_000;
  * brand custom properties handed to the client follow the property palette.
  */
 export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | undefined }) {
-  const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, refetch } =
-    useRuWhiteLabelTokens(propertyId);
+  const {
+    tokens,
+    isLoading,
+    isFetching,
+    isUnavailable,
+    reason,
+    subUserVerified,
+    diagnostic,
+    loginEmail,
+    scope,
+    refetch,
+  } = useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
@@ -169,6 +180,17 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     } else if (reason === "no_owner_account") {
       title = "This property isn't linked to a ROL'OS Channel Manager account yet.";
       body = "Once the account link is in place the Channel Manager appears here automatically.";
+    } else if (reason === "wl_signin_refused") {
+      title = "This property is connected to ROL'OS.";
+      body = (
+        <>
+          <p>
+            Channel Manager sign-in for this property's distribution account has not been granted
+            yet. We are following it up — nothing is needed from you.
+          </p>
+          <p>Everything else about this property's connection is in order.</p>
+        </>
+      );
     } else if (reason === "awaiting_wl_token" || subUserVerified) {
       title = "Your ROL'OS account is connected.";
       body = (
@@ -195,6 +217,12 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
           </div>
           <p className="text-sm font-medium text-foreground">{title}</p>
           {body && <div className="space-y-2 text-sm text-muted-foreground">{body}</div>}
+          {isStaff && (diagnostic || loginEmail) && (
+            <p className="rounded border border-border bg-muted px-3 py-2 text-left text-xs font-mono text-muted-foreground">
+              {loginEmail ? `account ${loginEmail}` : "account unknown"}
+              {diagnostic ? ` · ${diagnostic}` : ""}
+            </p>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button
               variant="outline"
@@ -221,12 +249,20 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   }
 
   return (
-    <div
-      // Borderless, painted white so the frame boundary is invisible against the
-      // always-white Channels page.
-      style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }}
-      className={`relative w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
-    >
+    <div style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }} className="w-full border-0">
+      {/* What this frame covers — a single account can serve a whole portfolio. */}
+      <ChannelScopeHeader
+        propertyId={propertyId}
+        loginEmail={loginEmail}
+        scope={scope}
+        showAccount={isStaff}
+      />
+
+      <div
+        // Borderless, painted white so the frame boundary is invisible against the
+        // always-white Channels page.
+        className={`relative w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
+      >
 
       {!embedReady && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background">
@@ -247,6 +283,7 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
         // redirects that cannot use a popup.
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-top-navigation-by-user-activation"
       />
+      </div>
     </div>
   );
 
