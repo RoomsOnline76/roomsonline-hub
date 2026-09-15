@@ -179,6 +179,17 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
     } else if (reason === "no_owner_account") {
       title = "This property isn't linked to a ROL'OS Channel Manager account yet.";
       body = "Once the account link is in place the Channel Manager appears here automatically.";
+    } else if (reason === "wl_signin_refused") {
+      title = "This property is connected to ROL'OS.";
+      body = (
+        <>
+          <p>
+            Channel Manager sign-in for this property's distribution account has not been granted
+            yet. We are following it up — nothing is needed from you.
+          </p>
+          <p>Everything else about this property's connection is in order.</p>
+        </>
+      );
     } else if (reason === "awaiting_wl_token" || subUserVerified) {
       title = "Your ROL'OS account is connected.";
       body = (
