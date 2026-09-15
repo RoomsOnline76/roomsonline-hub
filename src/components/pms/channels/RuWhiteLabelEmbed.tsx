@@ -30,8 +30,18 @@ const EMBED_BOOT_TIMEOUT_MS = 25_000;
  * brand custom properties handed to the client follow the property palette.
  */
 export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | undefined }) {
-  const { tokens, isLoading, isFetching, isUnavailable, reason, subUserVerified, refetch } =
-    useRuWhiteLabelTokens(propertyId);
+  const {
+    tokens,
+    isLoading,
+    isFetching,
+    isUnavailable,
+    reason,
+    subUserVerified,
+    diagnostic,
+    loginEmail,
+    scope,
+    refetch,
+  } = useRuWhiteLabelTokens(propertyId);
   const brand = usePMSBrand();
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const isStaff = isAdmin || isDev || isFearlessLeader;
