@@ -248,12 +248,20 @@ export function RuWhiteLabelEmbed({ propertyId }: { propertyId: string | null | 
   }
 
   return (
-    <div
-      // Borderless, painted white so the frame boundary is invisible against the
-      // always-white Channels page.
-      style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }}
-      className={`relative w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
-    >
+    <div style={{ ...brandStyle, backgroundColor: EMBED_BG_LIGHT }} className="w-full border-0">
+      {/* What this frame covers — a single account can serve a whole portfolio. */}
+      <ChannelScopeHeader
+        propertyId={propertyId}
+        loginEmail={loginEmail}
+        scope={scope}
+        showAccount={isStaff}
+      />
+
+      <div
+        // Borderless, painted white so the frame boundary is invisible against the
+        // always-white Channels page.
+        className={`relative w-full ${EMBED_HEIGHT} overflow-hidden border-0`}
+      >
 
       {!embedReady && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background">
