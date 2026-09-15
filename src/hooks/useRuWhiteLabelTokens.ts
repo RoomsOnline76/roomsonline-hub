@@ -68,6 +68,11 @@ export function useRuWhiteLabelTokens(propertyId: string | null | undefined) {
     isUnavailable: !query.isLoading && !query.isError && !tokens,
     reason: data?.reason ?? (query.isError ? "request_failed" : null),
     subUserVerified: data?.sub_user_verified === true,
+    /** Staff-only refusal code (e.g. `sub_user_http_403`). */
+    diagnostic: data?.diagnostic ?? null,
+    loginEmail: data?.login_email ?? null,
+    ownerId: data?.owner_id ?? null,
+    scope: data?.scope ?? null,
     message: data?.message ?? (query.error instanceof Error ? query.error.message : null),
     /** Always re-hits the edge function, even when the cached answer is still fresh. */
     refetch: () => query.refetch({ cancelRefetch: true }),
