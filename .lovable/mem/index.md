@@ -14,3 +14,4 @@
 - [Discount Ladder Push on Save](mem://features/pms/discount-ladder-push-on-save) — long-stay/last-minute deals push via queueChannelDiscountSync on every specials/ru_discounts write; extra_adult_rate per season is the <Extra> amount
 - [Channel Account Portfolio Inheritance](mem://features/pms/channel-account-portfolio-inheritance) — one sub-account per portfolio; siblings inherit a property-scoped bound row (Albatros read as unbound)
 - [Cheetah Plains Owner Pack from Run](mem://features/reports/cheetaplains-owner-pack-from-run) — bespoke pack auto-built from each run: snapshot BOB, provisional Active Enquiries, carried budget/STLY/LY, TOBI-drafted pages
+- [No Expired Channel Sign-in](mem://constraints/pms/no-expired-wl-signin) — never serve an expired WL token pair; sub_user_http_* refusal returns wl_signin_refused with staff diagnostic; frame is account-scoped
