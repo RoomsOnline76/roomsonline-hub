@@ -362,6 +362,8 @@ Deno.serve(async (req) => {
             success: true,
             available: true,
             owner_id: ownerId,
+            login_email: subUserName || null,
+            scope: scopeLabel,
             access_token: minted.access,
             refresh_token: minted.refresh,
             expires_at: expiry,
@@ -373,15 +375,23 @@ Deno.serve(async (req) => {
       exchangeError = 'sub_user_name_missing';
     }
 
-    if (account.ru_wl_access_token && account.ru_wl_refresh_token) {
+    // An expired pair must NEVER be handed to the embed: the client boots on a dead
+    // sign-in and shows its own generic error dialog, which reads as a ROL'OS fault and
+    // hides the real refusal. Report the session as unavailable instead.
+    const refused = /^sub_user_http_/.test(exchangeError ?? '');
+
+    if (refused) {
       return json({
         success: true,
-        available: true,
+        available: false,
+        reason: 'wl_signin_refused',
+        sub_user_verified: subUserVerified,
         owner_id: ownerId,
-        access_token: account.ru_wl_access_token,
-        refresh_token: account.ru_wl_refresh_token,
-        expires_at: account.ru_wl_token_expires_at,
-        source: 'stale',
+        login_email: subUserName || null,
+        scope: scopeLabel,
+        diagnostic: exchangeError,
+        message:
+          "This property is connected to ROL'OS. Channel Manager sign-in for its distribution account has not been granted yet — we are following it up. Nothing is needed from you.",
       });
     }
 
@@ -391,6 +401,9 @@ Deno.serve(async (req) => {
         available: false,
         reason: 'awaiting_wl_token',
         sub_user_verified: true,
+        owner_id: ownerId,
+        login_email: subUserName || null,
+        scope: scopeLabel,
         diagnostic: exchangeError,
         message:
           "The ROL'OS account is connected. Channel Manager sign-in is still being finalised by TOBI.",
@@ -401,6 +414,10 @@ Deno.serve(async (req) => {
       success: true,
       available: false,
       reason: 'no_credentials',
+      owner_id: ownerId,
+      login_email: subUserName || null,
+      scope: scopeLabel,
+      diagnostic: exchangeError,
       message: "The ROL'OS Channel Manager connection has not been completed for this owner.",
     });
 
