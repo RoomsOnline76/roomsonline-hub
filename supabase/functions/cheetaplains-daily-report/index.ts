@@ -18,7 +18,15 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
-import { isHouseStateGrid, parseHouseState, type ProtelDay } from "../_shared/protel/houseState.ts";
+import {
+  isHouseStateGrid,
+  isHouseStatePdfText,
+  parseHouseState,
+  parseHouseStatePdfText,
+  type HouseStateFilter,
+  type ProtelDay,
+} from "../_shared/protel/houseState.ts";
+
 import {
   isProvisionalGrid,
   parseProvisionalGrid,
