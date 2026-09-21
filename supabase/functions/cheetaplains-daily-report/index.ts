@@ -81,7 +81,13 @@ type PipelineTotals = {
 };
 
 type DailyPayload =
-  | { kind: "house_state"; days: ProtelDay[] }
+  /**
+   * One House State / Hotel Status print. `filter` says which reservation states
+   * it covered: confirmed business, or provisional (optional / tentative) business
+   * that must never be added to revenue on the books.
+   */
+  | { kind: "house_state"; days: ProtelDay[]; filter?: HouseStateFilter }
+
   | { kind: "provisional"; months: Record<string, { revenue: number; nights: number }> }
   | { kind: "pipeline"; roles: Partial<Record<PipelineRole, PipelineTotals>> }
   | { kind: "created" | "cancelled"; movement: DailyMovement }
