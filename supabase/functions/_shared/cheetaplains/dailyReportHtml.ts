@@ -141,9 +141,13 @@ interface ChartSeries {
  * against budget and against the same time last year — as an inline SVG so the
  * page prints without fetching anything.
  */
-const yearChartSvg = (grid: DailyYearGrid, primary: string): string => {
+const yearChartSvg = (
+  grid: DailyYearGrid,
+  primary: string,
+): { svg: string; legend: string } => {
   const months = grid.rows.filter((entry) => entry.kind === "month");
-  if (months.length === 0) return "";
+  if (months.length === 0) return { svg: "", legend: "" };
+
   const series: ChartSeries[] = [
     { name: "On the books", colour: primary, values: months.map((entry) => entry.bob) },
     ...(hasBudget(grid)
