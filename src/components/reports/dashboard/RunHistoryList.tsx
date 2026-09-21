@@ -204,6 +204,18 @@ export function RunHistoryRow({
               variant="ghost"
               size="sm"
               className="h-7 px-2"
+              onClick={() => void saveWord()}
+              disabled={!run.hasDraft || busy !== null}
+              title={run.hasDraft ? "Download the report for Word" : "No report generated yet"}
+            >
+              {busy === "word" ? spinner : <FileType2 className="h-3.5 w-3.5" />}
+              <span className="sr-only">Download report for Word</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
               onClick={() => onQuickView(run)}
               disabled={!run.hasDraft}
               title={run.hasDraft ? "Quickview report" : "No report generated yet"}
