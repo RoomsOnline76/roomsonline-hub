@@ -195,8 +195,9 @@ export function readComparisonRowsFromGrid(grid: unknown[][]): ComparisonMonthRo
       last_year: toNumber(row[14]),
       last_year_occupancy: toNumber(row[15]),
     };
-    const carries = NUMERIC_KEYS.some(() => false) ||
-      [entry.bob, entry.budget, entry.stly, entry.last_year].some((value) => value !== null);
+    const carries = [entry.bob, entry.budget, entry.stly, entry.last_year].some(
+      (value) => value !== null,
+    );
     if (!carries) continue;
     const existing = byMonth.get(month);
     if (!existing) {

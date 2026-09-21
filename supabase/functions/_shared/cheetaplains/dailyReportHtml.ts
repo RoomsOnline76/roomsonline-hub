@@ -9,7 +9,7 @@
 
 import { pdfDocumentTitle } from "../revenueReportHtml.ts";
 import type { DailyFigures, DailyMovement } from "./dailyDetailed.ts";
-import type { DailyGridRow, DailyYearGrid } from "./daySheetGrid.ts";
+import type { DailyGridRow, DailyYearGrid } from "./comparisonGrid.ts";
 
 export interface DailyReportBranding {
   primary: string;
