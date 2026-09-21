@@ -275,13 +275,16 @@ export interface DailyReportResult {
 /**
  * The status split under a movement line. Confirmed and provisional business is
  * never added together — most provisionals never confirm — so the print keeps
- * one indented line per reservation status the export carried. A print with a
- * single status (every row on the cancelled print reads `Cancelled`) adds
- * nothing and is left off.
+ * one indented line per reservation status the export carried, even when the
+ * whole print reads one status: a day of four provisional reservations must say
+ * so. A cancelled print, whose every row reads `Cancelled`, carries no split.
  */
 const statusRows = (movement: DailyMovement | null): string => {
-  const statuses = movement?.statuses ?? [];
-  if (statuses.length < 2) return "";
+  const statuses = (movement?.statuses ?? []).filter(
+    (status) => !/^cancell?ed$/i.test(status.label),
+  );
+  if (!statuses.length) return "";
+
   return statuses
     .map((status) =>
       row([
