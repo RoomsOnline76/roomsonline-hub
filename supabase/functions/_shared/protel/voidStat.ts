@@ -137,7 +137,8 @@ export function parseVoidStat(grid: Grid, filename: string): VoidStatResult {
   }
   if (repeats) {
     warnings.push(
-      `${filename}: ${repeats} reservation(s) were voided more than once — counted once, at the largest void`,
+      `${filename}: ${repeats} repeated void line(s) for an already-counted reservation were not counted again`,
+
     );
   }
 
