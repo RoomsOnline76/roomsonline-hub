@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { FileArchive, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { FileArchive, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -7,21 +7,17 @@ import { downloadFile } from "@/lib/reportDraftHtml";
 
 interface Props {
   hasSnapshot: boolean;
-  isExcelBusy: boolean;
   isDraftBusy: boolean;
   isPackBusy: boolean;
-  onExcel: () => Promise<{ ok: boolean; message?: string; url?: string }>;
   onDraft: () => Promise<{ ok: boolean; message?: string; url?: string }>;
   onPack: () => Promise<{ ok: boolean; message?: string; url?: string }>;
 }
 
-/** Excel / draft report / Canva pack downloads for a processed run. */
+/** Draft report and designer pack downloads for a processed run. */
 export function DownloadBar({
   hasSnapshot,
-  isExcelBusy,
   isDraftBusy,
   isPackBusy,
-  onExcel,
   onDraft,
   onPack,
 }: Props) {
@@ -50,25 +46,11 @@ export function DownloadBar({
           <p className="text-sm font-medium">Downloads</p>
           <p className="text-sm text-muted-foreground">
             {hasSnapshot
-              ? "Editable workbook, branded draft report and the designer asset pack."
+              ? "Branded draft report and the designer asset pack."
               : "Process the run first — downloads need an aggregated snapshot."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!hasSnapshot || isExcelBusy}
-            onClick={() =>
-              void run(onExcel, "Consolidated workbook ready", "Could not build the workbook", true)
-            }
-          >
-            {isExcelBusy ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-            )}
-            Excel
-          </Button>
           <Button
             variant="outline"
             disabled={!hasSnapshot || isDraftBusy}

@@ -53,10 +53,8 @@ export function StageBuild({ ctx }: { ctx: RunBuilderContext }) {
 
       <DownloadBar
         hasSnapshot={Boolean(snapshot)}
-        isExcelBusy={ctx.isExcelBusy}
         isDraftBusy={ctx.isDraftBusy}
         isPackBusy={ctx.isPackBusy}
-        onExcel={ctx.onExcel}
         onDraft={ctx.onDraft}
         onPack={ctx.onPack}
       />
