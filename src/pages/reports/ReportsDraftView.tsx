@@ -24,7 +24,9 @@ export default function ReportsDraftView() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState<string | null>(null);
+  const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
 
   usePageSEO({
     title: documentTitle ?? "Report preview | Rooms Online",
