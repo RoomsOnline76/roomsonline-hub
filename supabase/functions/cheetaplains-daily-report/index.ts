@@ -420,9 +420,15 @@ Deno.serve(async (req) => {
                   const probe = toGrid(workbook, name, PROBE_ROWS);
                   const isHouseState = isHouseStateGrid(probe);
                   const isPipeline = !isHouseState && isPipelineGrid(probe);
+                  const isCreated =
+                    !isHouseState && !isPipeline && isReservationListGrid(probe);
+                  const isVoided =
+                    !isHouseState && !isPipeline && !isCreated && isVoidStatGrid(probe);
                   const isProvisional =
-                    !isHouseState && !isPipeline && isProvisionalGrid(probe);
+                    !isHouseState && !isPipeline && !isCreated && !isVoided &&
+                    isProvisionalGrid(probe);
                   probe.length = 0;
+
                   if (isPipeline) {
                     // The tracker keeps enquiries, confirmations and losses on
                     // separate sheets — all three are read in one pass.
