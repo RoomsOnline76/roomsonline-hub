@@ -254,12 +254,19 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
     stat("Departures", num(figures.departures)),
   ].join("");
 
+  // Confirmed and provisional prints are read apart. Provisional villa nights
+  // and value print on their own line and are never added to the figures above.
   const monthTable = `<table class="grid">
   ${row(["", "Month to date", `${esc(monthLabel(figures.date))} on the books`], true)}
   ${row(["Accommodation revenue", rand(figures.monthToDate.revenue), rand(figures.monthOnBooks.revenue)])}
   ${row(["Villa nights", num(figures.monthToDate.nights), num(figures.monthOnBooks.nights)])}
   ${row(["Occupancy", pct(figures.monthToDate.occupancy), pct(figures.monthOnBooks.occupancy)])}
   ${row(["ADR", rand(figures.monthToDate.adr), rand(figures.monthOnBooks.adr)])}
+  ${row([
+    `<span class="sub">Provisional (optional / tentative), not on the books</span>`,
+    `<span class="sub">${esc(num(figures.provisionalMonth?.nights ?? null))} nights</span>`,
+    `<span class="sub">${esc(rand(figures.provisionalMonth?.revenue ?? null))}</span>`,
+  ])}
 </table>`;
 
   const revenueTable = `<table class="grid">
@@ -268,7 +275,12 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   ${row(["Food &amp; beverage", rand(figures.foodAndBeverage)])}
   ${row(["Extras", rand(figures.extras)])}
   ${row(["<strong>Total</strong>", `<strong>${esc(rand(figures.total))}</strong>`])}
+  ${row([
+    `<span class="sub">Provisional villas held today (${esc(num(figures.provisionalDay?.villasOccupied ?? null))})</span>`,
+    `<span class="sub">${esc(rand(figures.provisionalDay?.accommodation ?? null))}</span>`,
+  ])}
 </table>`;
+
 
   const movementPeriod = figures.created?.period ?? figures.cancelled?.period ?? null;
   const movementTable = `<table class="grid">
