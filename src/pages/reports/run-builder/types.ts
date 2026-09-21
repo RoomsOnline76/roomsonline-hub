@@ -1,5 +1,5 @@
 import type { ReportRunDetail, ReportSourceFile } from "@/hooks/useReportRuns";
-import type { ReportSnapshot, ExcelResult } from "@/hooks/useReportSnapshot";
+import type { ReportSnapshot } from "@/hooks/useReportSnapshot";
 import type { ReportSourceAdapter } from "@/lib/report-adapters";
 import type { DropZoneFileState } from "@/components/reports/FileDropZone";
 import type {
@@ -52,10 +52,8 @@ export interface RunBuilderContext {
   /* Stage H — processing and downloads */
   onProcess: () => void;
   isProcessing: boolean;
-  onExcel: () => Promise<ExcelResult>;
   onDraft: () => Promise<{ ok: boolean; message?: string; url?: string }>;
   onPack: () => Promise<{ ok: boolean; message?: string; url?: string }>;
-  isExcelBusy: boolean;
   isDraftBusy: boolean;
   isPackBusy: boolean;
   draftUrl: string | null;
@@ -84,8 +82,6 @@ export interface RunBuilderContext {
   /** Text pasted from the day's email, stored against the run. */
   dailyEmailText: string;
   onSaveDailyEmailText: (text: string) => Promise<{ ok: boolean; message?: string }>;
-  /** Downloads the clean team workbook that may be reworked and uploaded as a replacement base. */
-  onDownloadDailySample: () => Promise<{ ok: boolean; message?: string }>;
 }
 
 

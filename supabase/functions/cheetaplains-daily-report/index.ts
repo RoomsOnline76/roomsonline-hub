@@ -9,8 +9,8 @@
  *                   extracted payload on its `report_source_files` row;
  *   `build`       — once nothing is left to read, assembles the day from the
  *                   stored payloads, applies anything pasted from the day's
- *                   email, upserts the day, rebuilds the running workbook and
- *                   renders the one-page report.
+ *                   email, upserts the day and its months, and renders the
+ *                   one-page report from the stored figures.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -31,23 +31,18 @@ import {
 } from "../_shared/cheetaplains/pipeline.ts";
 import {
   buildDailyFigures,
-  buildDailyWorkbook,
   monthlyOnBooks,
   parseMovementPdf,
   parsePastedEmail,
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
-import {
-  appendDaySheet,
-  daySheetName,
-  workbookContainsDaySheet,
-} from "../_shared/cheetaplains/dailyWorkbookSheet.ts";
 import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
 import {
-
-  type DailyYearGrid,
-} from "../_shared/cheetaplains/daySheetGrid.ts";
+  buildYearGrids,
+  fiscalYearLabel,
+  type ComparisonMonthRow,
+} from "../_shared/cheetaplains/comparisonGrid.ts";
 
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
@@ -61,8 +56,6 @@ const FILES_PER_BATCH = 1;
 const MAX_FILE_ATTEMPTS = 2;
 /** Rows sampled to recognise a sheet before the whole grid is converted. */
 const PROBE_ROWS = 40;
-/** A normal team master is about 11 MB; above this, recover from the clean uploaded master. */
-const OVERSIZED_RUNNING_WORKBOOK = 25_000_000;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -84,7 +77,7 @@ type DailyPayload =
   | { kind: "provisional"; months: Record<string, { revenue: number; nights: number }> }
   | { kind: "pipeline"; roles: Partial<Record<PipelineRole, PipelineTotals>> }
   | { kind: "created" | "cancelled"; movement: DailyMovement }
-  /** The running Daily Detailed workbook, kept as the base for the day's sheet. */
+  /** The team's old running spreadsheet — no longer used by the report. */
   | { kind: "running_workbook" }
   | { kind: "skipped" };
 
@@ -126,9 +119,8 @@ const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
 };
 
 /**
- * The running Daily Detailed workbook itself. It is never read as a source —
- * it is the base the day's new sheet is added to, so it is recognised by name
- * and left alone.
+ * The team's old running spreadsheet. The report is built from the database, so
+ * such a file is recognised by name and ignored.
  */
 const isRunningWorkbook = (name: string): boolean =>
   /daily[\s_-]*detailed[\s_-]*report/i.test(name) && /\.xlsx$/i.test(name);
@@ -178,10 +170,8 @@ Deno.serve(async (req) => {
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
     const requestedMode = typeof body?.mode === "string" ? body.mode : "parse_batch";
-    const mode: "parse_batch" | "aggregate" | "build" | "sample" =
-      requestedMode === "build" || requestedMode === "aggregate" || requestedMode === "sample"
-        ? requestedMode
-        : "parse_batch";
+    const mode: "parse_batch" | "aggregate" | "build" =
+      requestedMode === "build" || requestedMode === "aggregate" ? requestedMode : "parse_batch";
     const reset = body?.reset === true;
     const actorId = userData.user.id;
 
@@ -206,33 +196,6 @@ Deno.serve(async (req) => {
     if (filesError) return json({ error: filesError.message }, 500);
     const files = (fileRows ?? []) as FileRow[];
     if (!files.length) return json({ error: "This run has no uploaded files yet" }, 409);
-
-    if (mode === "sample") {
-      const currentSample = files.find((file) => isRunningWorkbook(file.original_filename ?? ""));
-      let samplePath = currentSample?.storage_path ?? null;
-      if (!samplePath) {
-        const { data: sampleRuns } = await admin
-          .from("report_runs")
-          .select("id")
-          .eq("property_id", run.property_id)
-          .order("as_of_date", { ascending: true });
-        const runIds = (sampleRuns ?? []).map((entry) => entry.id);
-        if (runIds.length) {
-          const { data: sampleFiles } = await admin
-            .from("report_source_files")
-            .select("storage_path, original_filename")
-            .in("run_id", runIds)
-            .order("created_at", { ascending: true });
-          samplePath = (sampleFiles ?? []).find((file) =>
-            isRunningWorkbook(file.original_filename ?? "")
-          )?.storage_path ?? null;
-        }
-      }
-      if (!samplePath) return json({ error: "No clean daily workbook sample is on file" }, 404);
-      const signed = await admin.storage.from(BUCKET).createSignedUrl(samplePath, 60 * 30);
-      if (signed.error) return json({ error: signed.error.message }, 500);
-      return json({ success: true, mode: "sample", sample_url: signed.data.signedUrl });
-    }
 
     /* ── parse a batch ───────────────────────────────────────────── */
 
@@ -270,7 +233,7 @@ Deno.serve(async (req) => {
         if (running) {
           entry = {
             payload: { kind: "running_workbook" },
-            notes: [`${filename}: the running workbook — the day's sheet is added to it`],
+            notes: [`${filename}: the old running spreadsheet — not used, the report is built from stored figures`],
             ok: true,
             rows: 0,
           };
@@ -501,7 +464,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, brand_primary, brand_secondary, report_logo_url, daily_workbook_path")
+      .select("room_count, brand_primary, brand_secondary, report_logo_url")
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -538,7 +501,6 @@ Deno.serve(async (req) => {
     const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
     let created: DailyMovement | null = null;
     let cancelled: DailyMovement | null = null;
-    let uploadedWorkbookPath: string | null = null;
     const results: Array<{ id: string; ok: boolean; rows: number; notes: string[] }> = [];
 
     for (const file of files) {
@@ -559,8 +521,6 @@ Deno.serve(async (req) => {
         for (const [role, totals] of Object.entries(payload.roles ?? {})) {
           if (totals) pipeline[role as PipelineRole] = totals;
         }
-      } else if (payload.kind === "running_workbook") {
-        uploadedWorkbookPath = file.storage_path;
       } else if (payload.kind === "created") {
         created = payload.movement;
       } else if (payload.kind === "cancelled") {
@@ -637,163 +597,57 @@ Deno.serve(async (req) => {
       .map((row) => row.figures as unknown as DailyFigures)
       .filter((row) => row && typeof row.date === "string");
 
-    /* ── the running workbook ────────────────────────────────────── */
+    /* ── the financial form ──────────────────────────────────────── */
 
-    // The day is added to the workbook the revenue team keeps: a copy of the
-    // newest day sheet, with yesterday's figures moved into the previous-day
-    // columns and this day's provisional business written in. An uploaded
-    // workbook on the run replaces whatever was stored before.
-    const primary = (settings?.brand_primary ?? "#1A1A2E").replace("#", "");
-    const workbookPath = `${run.property_id}/daily/daily-detailed-report.xlsx`;
-    const workbookNotes: string[] = [...dayNotes];
-    let workbookBytes: Uint8Array | null = null;
-    let sheetName = daySheetName(asOf);
-    let yearGrids: DailyYearGrid[] = [];
-
-
-    const basePath = uploadedWorkbookPath ?? settings?.daily_workbook_path ?? null;
-    if (basePath) {
-      let resolvedBasePath = basePath;
-      let base = await admin.storage.from(BUCKET).download(resolvedBasePath);
-      let recoveredFromClean = false;
-      if (
-        !uploadedWorkbookPath &&
-        base.data &&
-        base.data.size > OVERSIZED_RUNNING_WORKBOOK
-      ) {
-        const oversizedSize = base.data.size;
-        const recoveryPath = `${run.property_id}/daily/recovery/daily-detailed-report-${runId}.xlsx`;
-        const backup = await admin.storage.from(BUCKET).copy(resolvedBasePath, recoveryPath);
-        if (backup.error && !/already exists/i.test(backup.error.message)) {
-          return json({ error: `The oversized workbook could not be backed up: ${backup.error.message}` }, 500);
-        }
-        const { data: propertyRuns } = await admin
-          .from("report_runs")
-          .select("id")
-          .eq("property_id", run.property_id)
-          .order("as_of_date", { ascending: true });
-        const propertyRunIds = (propertyRuns ?? []).map((entry) => entry.id);
-        const { data: sourceCandidates } = propertyRunIds.length
-          ? await admin
-            .from("report_source_files")
-            .select("storage_path, original_filename")
-            .in("run_id", propertyRunIds)
-            .order("created_at", { ascending: true })
-          : { data: [] };
-        const cleanMasterPath = (sourceCandidates ?? []).find((file) =>
-          isRunningWorkbook(file.original_filename ?? "") && file.storage_path !== resolvedBasePath
-        )?.storage_path ?? null;
-        if (!cleanMasterPath) {
-          return json({ error: "The running workbook is oversized and no clean master is available; it was preserved" }, 500);
-        }
-        resolvedBasePath = cleanMasterPath;
-        base = await admin.storage.from(BUCKET).download(resolvedBasePath);
-        recoveredFromClean = true;
-        workbookNotes.push(
-          `The ${(oversizedSize / 1_000_000).toFixed(1)} MB oversized workbook was backed up and the clean team master was restored`,
-        );
-      }
-      if (base.error || !base.data) {
-        workbookNotes.push(
-          `The running workbook could not be opened (${base.error?.message ?? "download failed"})`,
-        );
-      } else {
-        const provisionalByMonth: Record<string, number> = {};
-        for (const [month, figuresForMonth] of Object.entries(
-          monthlyOnBooks(days, settings?.room_count ?? null),
-        )) {
-          provisionalByMonth[month] = figuresForMonth.revenue;
-        }
-        try {
-          let baseBuffer = await base.data.arrayBuffer();
-          if (recoveredFromClean) {
-            for (const historical of allFigures.filter((entry) => entry.date < asOf)) {
-              const month = historical.date.slice(0, 7);
-              const restored = await appendDaySheet(baseBuffer, historical.date, {
-                provisionalByMonth: { [month]: historical.monthOnBooks.revenue },
-                confirmedByMonth: { [month]: historical.monthToDate.revenue },
-                occupancyByMonth: { [month]: historical.monthToDate.occupancy ?? 0 },
-              });
-              baseBuffer = restored.bytes.buffer.slice(
-                restored.bytes.byteOffset,
-                restored.bytes.byteOffset + restored.bytes.byteLength,
-              );
-            }
-          }
-          const appended = await appendDaySheet(baseBuffer, asOf, {
-            provisionalByMonth,
-          });
-          const baseSize = base.data.size;
-          const maximumExpectedSize = Math.max(baseSize * 2, baseSize + 5_000_000);
-          if (appended.bytes.byteLength > maximumExpectedSize) {
-            throw new Error(
-              `The rebuilt workbook grew unexpectedly (${appended.bytes.byteLength} bytes from ${baseSize}); the previous workbook was preserved`,
-            );
-          }
-          workbookBytes = appended.bytes;
-          sheetName = appended.sheetName;
-          // The printed report carries the same financial form and graphs the
-          // day's sheet holds, read straight off the sheet just written.
-          yearGrids = appended.yearGrids;
-
-          workbookNotes.push(
-            `${appended.sheetName} ${appended.replaced ? "rebuilt" : "added"} from ${appended.templateSheet}` +
-              ` — ${appended.monthsWritten.length} month(s) updated from the day's exports`,
-            ...appended.notes,
-          );
-        } catch (error) {
-
-          workbookNotes.push(
-            `The day's sheet could not be added (${error instanceof Error ? error.message : "unknown"})`,
-          );
-        }
-      }
-    } else {
-      workbookNotes.push(
-        "No running workbook is on file yet — upload Daily Detailed Report 2026.xlsx with the day's exports to keep the team's format",
+    // The day's exports author revenue on the books and occupancy for every
+    // month they cover. Budget, same time last year and last year come from the
+    // one-time seed and are never written here.
+    const buildNotes: string[] = [...dayNotes];
+    const onBooks = monthlyOnBooks(days, settings?.room_count ?? null);
+    // An export can cover a month without carrying any figures for it. Writing
+    // that as zero would wipe a month that is sold, so a figureless month is
+    // left exactly as it stands.
+    const emptyMonths = Object.entries(onBooks)
+      .filter(([, monthFigures]) => monthFigures.revenue <= 0 && monthFigures.nights <= 0)
+      .map(([month]) => month);
+    const monthUpserts = Object.entries(onBooks)
+      .filter(([, monthFigures]) => monthFigures.revenue > 0 || monthFigures.nights > 0)
+      .map(([month, monthFigures]) => ({
+      property_id: run.property_id,
+      fiscal_year_label: fiscalYearLabel(month),
+      month: `${month}-01`,
+      bob: monthFigures.revenue,
+      occupancy: monthFigures.occupancy,
+      source: "run",
+      updated_at: new Date().toISOString(),
+    }));
+    if (monthUpserts.length) {
+      const { error: monthsError } = await admin
+        .from("report_comparison_months")
+        .upsert(monthUpserts, { onConflict: "property_id,month" });
+      if (monthsError) return json({ error: monthsError.message }, 500);
+      buildNotes.push(
+        `${monthUpserts.length} month(s) of revenue on the books updated from the day's exports`,
+      );
+    }
+    if (emptyMonths.length) {
+      buildNotes.push(
+        `${emptyMonths.length} month(s) carried no figures in the day's exports and were left unchanged`,
       );
     }
 
-    // The team's running workbook must never be replaced by the plain fallback:
-    // that would destroy the accumulated day sheets and lock every later run
-    // into the bare format. The fallback is written beside it instead.
-    const appendedToRunningWorkbook = workbookBytes !== null;
-    if (!workbookBytes) {
-      // Nothing to append to: fall back to the plain day-per-row workbook so the
-      // run still produces a spreadsheet.
-      workbookBytes = await buildDailyWorkbook(propertyName, allFigures, primary);
-      workbookNotes.push(
-        "A plain day-per-row spreadsheet was produced instead — the team's running workbook on file was left untouched",
+    const { data: comparisonRows, error: comparisonError } = await admin
+      .from("report_comparison_months")
+      .select("month, bob, occupancy, budget, stly, stly_occupancy, last_year, last_year_occupancy")
+      .eq("property_id", run.property_id)
+      .order("month", { ascending: true });
+    if (comparisonError) return json({ error: comparisonError.message }, 500);
+    const yearGrids = buildYearGrids((comparisonRows ?? []) as ComparisonMonthRow[]);
+    if (!yearGrids.length) {
+      buildNotes.push(
+        "No comparison figures are stored yet — import the consolidated workbook once in reporting settings",
       );
     }
-    const outputWorkbookPath = appendedToRunningWorkbook
-      ? workbookPath
-      : `${run.property_id}/daily/daily-detailed-${asOf}-plain.xlsx`;
-
-    if (appendedToRunningWorkbook && !(await workbookContainsDaySheet(workbookBytes, asOf))) {
-      return json({ error: `The rebuilt workbook did not contain ${sheetName}; the previous workbook was preserved` }, 500);
-    }
-    const versionedWorkbookPath = appendedToRunningWorkbook
-      ? `${run.property_id}/daily/versions/${runId}-${asOf}.xlsx`
-      : outputWorkbookPath;
-    const workbookUpload = await admin.storage
-      .from(BUCKET)
-      .upload(versionedWorkbookPath, workbookBytes, {
-        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        upsert: true,
-      });
-    if (workbookUpload.error) return json({ error: workbookUpload.error.message }, 500);
-
-    if (appendedToRunningWorkbook) {
-      const promotion = await admin.storage.from(BUCKET).copy(versionedWorkbookPath, workbookPath);
-      if (promotion.error) {
-        const overwrite = await admin.storage.from(BUCKET).update(workbookPath, workbookBytes, {
-          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        if (overwrite.error) return json({ error: overwrite.error.message }, 500);
-      }
-    }
-
 
     const report = buildDailyReportHtml({
       propertyName,
@@ -805,7 +659,6 @@ Deno.serve(async (req) => {
       },
       emailNotes: pasted.note,
       yearGrids,
-
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage
@@ -816,51 +669,31 @@ Deno.serve(async (req) => {
       });
     if (htmlUpload.error) return json({ error: htmlUpload.error.message }, 500);
 
-    if (appendedToRunningWorkbook) {
-      await admin
-        .from("property_report_settings")
-        .upsert(
-          {
-            property_id: run.property_id,
-            daily_workbook_path: workbookPath,
-            daily_workbook_updated_at: new Date().toISOString(),
-          },
-          { onConflict: "property_id" },
-        );
-    }
-
     await admin
       .from("report_runs")
       .update({
         status: "ready",
         processing_note: null,
         error_message: null,
-        excel_path: outputWorkbookPath,
-        excel_generated_at: new Date().toISOString(),
         draft_report_path: htmlPath,
         draft_generated_at: new Date().toISOString(),
       })
       .eq("id", runId);
 
-
     await logRunEvent(
       admin,
       runId,
       "processing_succeeded",
-      `Daily Detailed Report built for ${asOf} — sheet ${sheetName}. ${workbookNotes.join(" · ")}`,
+      `Daily Detailed Report built for ${asOf}. ${buildNotes.join(" · ")}`,
       {
         days_parsed: days.length,
         pasted_email: Boolean(pasted.note),
-        sheet: sheetName,
-        workbook_notes: workbookNotes,
+        build_notes: buildNotes,
       },
       actorId,
     );
 
-    const [workbookSigned, htmlSigned] = await Promise.all([
-      admin.storage.from(BUCKET).createSignedUrl(outputWorkbookPath, 60 * 30),
-      admin.storage.from(BUCKET).createSignedUrl(htmlPath, 60 * 30),
-    ]);
+    const htmlSigned = await admin.storage.from(BUCKET).createSignedUrl(htmlPath, 60 * 30);
 
     return json({
       success: true,
@@ -868,13 +701,10 @@ Deno.serve(async (req) => {
       run_id: runId,
       date: asOf,
       figures,
-      days_in_workbook: allFigures.length,
-      sheet: sheetName,
-      workbook_notes: workbookNotes,
+      days_stored: allFigures.length,
+      build_notes: buildNotes,
       pipeline,
       files: results,
-      excel_url: workbookSigned.data?.signedUrl ?? null,
-      excel_path: outputWorkbookPath,
       report_url: htmlSigned.data?.signedUrl ?? null,
       report_path: htmlPath,
       document_title: report.documentTitle,

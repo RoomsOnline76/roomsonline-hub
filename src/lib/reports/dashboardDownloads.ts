@@ -2,8 +2,8 @@
  * Saving a run's files straight from the Revenue Reports dashboard.
  *
  * The dashboard hands the operator finished artefacts without opening the run
- * builder: the daily running workbook, and the bespoke owner pack merged into
- * one printable document (the same merge the run builder uses).
+ * builder: the printed report, and the bespoke owner pack merged into one
+ * printable document (the same merge the run builder uses).
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -25,18 +25,6 @@ const sign = async (path: string): Promise<string | null> => {
   const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 30);
   return data?.signedUrl ?? null;
 };
-
-/** Saves the daily running workbook stored at `excelPath`. */
-export async function downloadRunWorkbook(
-  excelPath: string | null,
-  filename: string,
-): Promise<DownloadOutcome> {
-  if (!excelPath) return { ok: false, message: "No spreadsheet has been built for this run yet." };
-  const url = await sign(excelPath);
-  if (!url) return { ok: false, message: "Could not open the spreadsheet." };
-  await downloadFile(url, filename);
-  return { ok: true };
-}
 
 /** Saves every owner-pack page of a run as one printable file. */
 export async function downloadRunOwnerPack(

@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { downloadFile } from "@/lib/reportDraftHtml";
 
 /** One business day of Cheetah Plains figures, as stored on the run. */
 export interface DailyPeriodFigures {
@@ -53,8 +52,7 @@ export interface DailyBuildResult {
   ok: boolean;
   message?: string;
   figures?: DailyFigures;
-  daysInWorkbook?: number;
-  excelUrl?: string;
+  daysStored?: number;
   reportUrl?: string;
   documentTitle?: string;
 }
@@ -79,7 +77,7 @@ const readError = async (error: unknown): Promise<string> => {
 
 /**
  * Builds the Daily Detailed Report for a run: reads the day's uploads, stores
- * the day, refreshes the property's running workbook and the branded one-pager.
+ * the day and its months, and renders the branded one-pager.
  */
 export function useDailyDetailedReport(
   runId: string | undefined,
@@ -218,8 +216,7 @@ export function useDailyDetailedReport(
       const built: DailyBuildResult = {
         ok: true,
         figures: data?.figures as DailyFigures | undefined,
-        daysInWorkbook: Number(data?.days_in_workbook) || undefined,
-        excelUrl: data?.excel_url ? String(data.excel_url) : undefined,
+        daysStored: Number(data?.days_stored) || undefined,
         reportUrl: data?.report_url ? String(data.report_url) : undefined,
         documentTitle: data?.document_title ? String(data.document_title) : undefined,
       };
@@ -232,16 +229,6 @@ export function useDailyDetailedReport(
     }
   }, [runId, queryClient, storedDay, call, markFailed]);
 
-  const downloadSample = useCallback(async (): Promise<{ ok: boolean; message?: string }> => {
-    if (!runId) return { ok: false, message: "No run selected" };
-    const response = await call({ run_id: runId, mode: "sample" });
-    if (!response.ok) return response;
-    const url = response.data.sample_url;
-    if (typeof url !== "string" || !url) return { ok: false, message: "The sample is unavailable" };
-    await downloadFile(url);
-    return { ok: true };
-  }, [runId, call]);
-
   return {
     build,
     isBuilding,
@@ -251,6 +238,5 @@ export function useDailyDetailedReport(
     isLoadingDay: storedDay.isLoading,
     emailText: emailText.data ?? "",
     saveEmailText,
-    downloadSample,
   };
 }

@@ -29,6 +29,7 @@ import {
   useReportPropertyBrand,
 } from "@/hooks/useReportPropertyBrand";
 import { HistoricalBaselineEditor } from "@/components/reports/HistoricalBaselineEditor";
+import { ComparisonSeedImport } from "@/components/reports/ComparisonSeedImport";
 import { BrandAssetUpload } from "@/components/reports/BrandAssetUpload";
 import {
   REPORT_BRAND_SOURCE_LABEL,
@@ -667,6 +668,8 @@ export default function ReportsPropertySettings() {
 
 
 
+
+          {propertyId && <ComparisonSeedImport propertyId={propertyId} />}
 
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>

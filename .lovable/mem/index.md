@@ -15,3 +15,4 @@
 - [Channel Account Portfolio Inheritance](mem://features/pms/channel-account-portfolio-inheritance) — one sub-account per portfolio; siblings inherit a property-scoped bound row (Albatros read as unbound)
 - [Cheetah Plains Owner Pack from Run](mem://features/reports/cheetaplains-owner-pack-from-run) — bespoke pack auto-built from each run: snapshot BOB, provisional Active Enquiries, carried budget/STLY/LY, TOBI-drafted pages
 - [No Expired Channel Sign-in](mem://constraints/pms/no-expired-wl-signin) — never serve an expired WL token pair; sub_user_http_* refusal returns wl_signin_refused with staff diagnostic; frame is account-scoped
+- [No Excel in Revenue Reports](mem://features/reports/no-excel-workbooks) — PDF-only reports; report_comparison_months seeding, never overwrite a month with zeros

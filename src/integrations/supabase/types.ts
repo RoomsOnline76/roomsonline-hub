@@ -8506,6 +8506,79 @@ export type Database = {
           },
         ]
       }
+      report_comparison_months: {
+        Row: {
+          bob: number | null
+          budget: number | null
+          created_at: string
+          fiscal_year_label: string
+          id: string
+          last_year: number | null
+          last_year_occupancy: number | null
+          month: string
+          occupancy: number | null
+          property_id: string
+          source: string
+          stly: number | null
+          stly_occupancy: number | null
+          updated_at: string
+        }
+        Insert: {
+          bob?: number | null
+          budget?: number | null
+          created_at?: string
+          fiscal_year_label: string
+          id?: string
+          last_year?: number | null
+          last_year_occupancy?: number | null
+          month: string
+          occupancy?: number | null
+          property_id: string
+          source?: string
+          stly?: number | null
+          stly_occupancy?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bob?: number | null
+          budget?: number | null
+          created_at?: string
+          fiscal_year_label?: string
+          id?: string
+          last_year?: number | null
+          last_year_occupancy?: number | null
+          month?: string
+          occupancy?: number | null
+          property_id?: string
+          source?: string
+          stly?: number | null
+          stly_occupancy?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_comparison_months_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "report_comparison_months_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_comparison_months_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_daily_days: {
         Row: {
           created_at: string
