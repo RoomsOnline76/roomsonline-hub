@@ -140,11 +140,6 @@ export function parseReservationList(grid: Grid, filename: string): ReservationL
   }
 
   if (!count) warnings.push(`${filename}: reservation list carried no reservation rows`);
-  if (printedNights !== null && printedNights !== nights) {
-    warnings.push(
-      `${filename}: the print's total of ${printedNights} nights differs from the ${nights} nights read — the listed rows were used`,
-    );
-  }
 
   const statuses = [...buckets.values()].sort((left, right) => {
     const rank = (entry: DailyMovementStatus) => {
