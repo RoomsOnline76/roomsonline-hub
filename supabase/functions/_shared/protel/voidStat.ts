@@ -63,7 +63,9 @@ export interface VoidStatResult {
 /** Reads the Cancellations print into the report's movement shape. */
 export function parseVoidStat(grid: Grid, filename: string): VoidStatResult {
   const warnings: string[] = [];
-  const seen = new Set<string>();
+  const byReservation = new Map<string, { value: number; nights: number }>();
+  let repeats = 0;
+
   let count = 0;
   let nights = 0;
   let value = 0;
