@@ -229,8 +229,26 @@ export function useDailyDetailedReport(
     }
   }, [runId, queryClient, storedDay, call, markFailed]);
 
+  /**
+   * The Canva asset pack for the day: the printed page, a vector graph and a CSV
+   * per financial year, and every figure as JSON. Built from the stored report,
+   * so the day must have been built first.
+   */
+  const buildPack = useCallback(async (): Promise<{
+    ok: boolean;
+    message?: string;
+    url?: string;
+  }> => {
+    if (!runId) return { ok: false, message: "No run selected" };
+    const outcome = await call({ run_id: runId, mode: "pack" });
+    if (!outcome.ok) return { ok: false, message: outcome.message };
+    const url = outcome.data.url ? String(outcome.data.url) : undefined;
+    return url ? { ok: true, url } : { ok: false, message: "The pack could not be stored" };
+  }, [runId, call]);
+
   return {
     build,
+    buildPack,
     isBuilding,
     progress,
     result,
@@ -239,4 +257,5 @@ export function useDailyDetailedReport(
     emailText: emailText.data ?? "",
     saveEmailText,
   };
+
 }
