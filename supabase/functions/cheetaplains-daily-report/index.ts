@@ -460,7 +460,12 @@ Deno.serve(async (req) => {
                       };
                     } else {
                       entry = {
-                        payload: { kind: "house_state", days: houseState.days },
+                        payload: {
+                          kind: "house_state",
+                          days: houseState.days,
+                          filter: houseState.filter,
+                        },
+
                         notes: houseState.warnings,
                         ok: true,
                         rows: houseState.days.length,
