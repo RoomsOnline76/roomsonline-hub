@@ -102,10 +102,17 @@ export default function ReportsDraftView() {
           </Button>
           <p className="text-sm text-muted-foreground truncate">{documentTitle ?? "Report preview"}</p>
         </div>
-        <Button size="sm" onClick={handlePrint} disabled={!url}>
-          <Printer className="h-4 w-4 mr-2" />
-          Save as PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={handlePrint} disabled={!url}>
+            <Printer className="h-4 w-4 mr-2" />
+            Save as PDF
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleWord} disabled={!html}>
+            <FileType2 className="h-4 w-4 mr-2" />
+            Save as Word
+          </Button>
+        </div>
+
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
