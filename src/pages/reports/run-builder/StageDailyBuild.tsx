@@ -114,7 +114,7 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
             <p className="text-sm font-medium">Download</p>
             <p className="text-sm text-muted-foreground">
               {reportUrl
-                ? "The day's report, ready to print or save as PDF, or as a Word document in the same layout."
+                ? "The day's report, ready to print or save as PDF, as an editable Word document in the same layout, or as a Canva pack."
                 : ready
                   ? "Press Build to refresh the report."
                   : "Read and build the day first."}
@@ -135,9 +135,22 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
               ) : (
                 <FileType2 className="mr-2 h-4 w-4" />
               )}
-              Word
+              Word (.docx)
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!reportUrl || savingPack}
+              onClick={() => void savePack()}
+            >
+              {savingPack ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileArchive className="mr-2 h-4 w-4" />
+              )}
+              Canva pack
             </Button>
           </div>
+
         </CardContent>
       </Card>
 
