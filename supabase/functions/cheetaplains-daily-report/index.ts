@@ -9,8 +9,8 @@
  *                   extracted payload on its `report_source_files` row;
  *   `build`       — once nothing is left to read, assembles the day from the
  *                   stored payloads, applies anything pasted from the day's
- *                   email, upserts the day, rebuilds the running workbook and
- *                   renders the one-page report.
+ *                   email, upserts the day and its months, and renders the
+ *                   one-page report from the stored figures.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
