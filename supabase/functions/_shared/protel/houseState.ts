@@ -190,6 +190,7 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
   const days: ProtelDay[] = [];
   let totals: ProtelTotals | null = null;
   let period: ProtelParseResult["period"] = null;
+  let filterText: string | null = null;
 
   const anchors = findAnchors(grid);
   if (!isHouseStateGrid(grid)) {
@@ -198,6 +199,8 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
       totals,
       period,
       impliedRooms: null,
+      filter: "confirmed",
+      filterText: null,
       errors: [`${filename}: not a protel House State export (header labels not found)`],
       warnings,
     };
@@ -212,11 +215,24 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     const row = raw ?? [];
     const labels = row.map((cell) => text(cell).toLowerCase());
 
+    const stateIndex = labels.findIndex((label) => label === "state:");
+    if (stateIndex >= 0) {
+      for (let c = stateIndex + 1; c < row.length; c += 1) {
+        const value = text(row[c]);
+        if (value) {
+          filterText = value;
+          break;
+        }
+      }
+      continue;
+    }
+
     if (labels.some((label) => label === "reporting period:")) {
       const dates = dateCells(row);
       if (dates.length >= 2) period = { from: dates[0], to: dates[dates.length - 1] };
       continue;
     }
+
     if (labels.some((label) => label.startsWith("sum / page"))) continue;
     if (!seenTotalRow && labels.some((label) => label === "total") && dateCells(row).length === 0) {
       const occupied = read(row, "occupied");
