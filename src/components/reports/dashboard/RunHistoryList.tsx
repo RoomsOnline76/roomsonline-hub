@@ -10,6 +10,8 @@ import { reportsPath } from "@/lib/config";
 import { sourceLabel } from "@/lib/report-adapters";
 import { downloadRunOwnerPack, type DownloadOutcome } from "@/lib/reports/dashboardDownloads";
 import { downloadFile } from "@/lib/reportDraftHtml";
+import { downloadReportAsWord } from "@/lib/reports/wordDownload";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { PortfolioRun } from "@/hooks/useReportPortfolio";
