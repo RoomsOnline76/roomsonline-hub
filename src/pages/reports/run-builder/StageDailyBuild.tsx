@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Loader2, Play, Trash2 } from "lucide-react";
+import { FileText, FileType2, Loader2, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { toRenderableReport } from "@/lib/reportDraftHtml";
+import { downloadReportAsWord } from "@/lib/reports/wordDownload";
+
 import { RunEventTimeline } from "@/components/reports/RunEventTimeline";
 import type { RunBuilderContext } from "./types";
 
