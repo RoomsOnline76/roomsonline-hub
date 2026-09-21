@@ -33,6 +33,10 @@ const bodyOf = (html: string): string => {
 const escapeHtml = (value: string): string =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+const escapeXml = (value: string): string =>
+  escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+
 /** The report page as the HTML chunk Word converts on open. */
 export function reportHtmlForWord(html: string, documentTitle: string): string {
   return `<!doctype html>
@@ -67,11 +71,21 @@ const DOCUMENT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
   <Relationship Id="rIdChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="report.html"/>
 </Relationships>`;
 
-/** A4 portrait with the same 1.2cm margins the report prints with. */
-const DOCUMENT_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+/**
+ * A4 portrait with the same 1.2cm margins the report prints with.
+ *
+ * Word converts the report page into editable Word content on open. Readers
+ * that do not do that conversion (Google Docs, Pages, LibreOffice) show the
+ * heading and the short note instead of an empty page.
+ */
+const documentXml = (documentTitle: string): string => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
             xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>
+    <w:p><w:pPr><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:pPr>
+      <w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t xml:space="preserve">${escapeXml(documentTitle)}</w:t></w:r>
+    </w:p>
+    <w:p><w:r><w:rPr><w:i/><w:sz w:val="18"/></w:rPr><w:t xml:space="preserve">Open this file in Microsoft Word to see and edit the full report.</w:t></w:r></w:p>
     <w:altChunk r:id="rIdChunk"/>
     <w:sectPr>
       <w:pgSz w:w="11906" w:h="16838"/>
@@ -85,7 +99,7 @@ export async function reportHtmlToDocx(html: string, documentTitle: string): Pro
   const zip = new JSZip();
   zip.file("[Content_Types].xml", CONTENT_TYPES);
   zip.file("_rels/.rels", ROOT_RELS);
-  zip.file("word/document.xml", DOCUMENT_XML);
+  zip.file("word/document.xml", documentXml(documentTitle));
   zip.file("word/_rels/document.xml.rels", DOCUMENT_RELS);
   zip.file("word/report.html", reportHtmlForWord(html, documentTitle));
   return await zip.generateAsync({
@@ -94,6 +108,7 @@ export async function reportHtmlToDocx(html: string, documentTitle: string): Pro
     compression: "DEFLATE",
   });
 }
+
 
 /** Filename-safe `.docx` name for a saved report. */
 export function wordFileName(documentTitle: string): string {
