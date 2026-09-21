@@ -459,8 +459,31 @@ Deno.serve(async (req) => {
                     };
                     break;
                   }
-                  if (!isHouseState && !isProvisional) continue;
+                  if (!isHouseState && !isProvisional && !isCreated && !isVoided) continue;
                   const grid = toGrid(workbook, name);
+                  if (isCreated) {
+                    // The created print carries its own status split, so
+                    // confirmed and provisional business stay apart.
+                    const list = parseReservationList(grid, filename);
+                    entry = {
+                      payload: { kind: "created", movement: list.movement },
+                      notes: list.warnings,
+                      ok: list.rowsRead > 0,
+                      rows: list.rowsRead,
+                    };
+                    break;
+                  }
+                  if (isVoided) {
+                    const voided = parseVoidStat(grid, filename);
+                    entry = {
+                      payload: { kind: "cancelled", movement: voided.movement },
+                      notes: voided.warnings,
+                      ok: voided.rowsRead > 0,
+                      rows: voided.rowsRead,
+                    };
+                    break;
+                  }
+
                   if (isHouseState) {
                     const houseState = parseHouseState(grid, filename);
                     if (houseState.errors.length) {
