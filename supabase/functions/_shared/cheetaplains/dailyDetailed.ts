@@ -100,8 +100,13 @@ const period = (days: ProtelDay[], villaCount: number | null): DailyPeriodFigure
 };
 
 export interface DailyFiguresInput {
-  /** Every daily row parsed from the run's House State exports. */
+  /** Daily rows from the confirmed House State exports. */
   days: ProtelDay[];
+  /**
+   * Daily rows from the provisional (Optional / Tentative) House State exports.
+   * Reported separately and never added to revenue on the books.
+   */
+  provisionalDays?: ProtelDay[];
   /** The business day the report covers. */
   date: string;
   /** Sellable villas, from the property's report settings when configured. */
@@ -126,6 +131,11 @@ export function buildDailyFigures(input: DailyFiguresInput): DailyFigures | null
   const toDate = monthDays.filter((day) => day.date <= input.date);
   const enquiry = input.provisionalMonths[month];
 
+  const tentativeDays = (input.provisionalDays ?? []).filter(
+    (day) => day.date.slice(0, 7) === month,
+  );
+  const tentativeToday = tentativeDays.find((day) => day.date === input.date);
+
   return {
     date: input.date,
     villasOccupied: today.roomsOccupied,
@@ -141,19 +151,20 @@ export function buildDailyFigures(input: DailyFiguresInput): DailyFigures | null
     monthToDate: period(toDate, villaCount),
     monthOnBooks: period(monthDays, villaCount),
     enquiries: enquiry ? { revenue: round2(enquiry.revenue), nights: enquiry.nights } : null,
+    provisionalDay: tentativeToday
+      ? {
+        villasOccupied: tentativeToday.roomsOccupied,
+        accommodation: round2(tentativeToday.accommodation),
+        total: round2(tentativeToday.total),
+      }
+      : null,
+    provisionalMonth: tentativeDays.length ? period(tentativeDays, villaCount) : null,
     created: input.created,
     cancelled: input.cancelled,
     villaCount,
   };
 }
 
-/** Revenue, nights and capacity per `YYYY-MM` across every House State row. */
-export function monthlyOnBooks(
-  days: ProtelDay[],
-  villaCount: number | null,
-): Record<string, DailyPeriodFigures> {
-  const byMonth = new Map<string, ProtelDay[]>();
-  for (const day of days) {
     const key = day.date.slice(0, 7);
     const bucket = byMonth.get(key);
     if (bucket) bucket.push(day);
