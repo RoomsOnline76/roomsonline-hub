@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, FileSpreadsheet, FileText, Loader2, Wrench } from "lucide-react";
+import { Eye, FileText, Loader2, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -8,11 +8,7 @@ import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { ReportHoverSummary } from "@/components/reports/dashboard/ReportHoverSummary";
 import { reportsPath } from "@/lib/config";
 import { sourceLabel } from "@/lib/report-adapters";
-import {
-  downloadRunOwnerPack,
-  downloadRunWorkbook,
-  type DownloadOutcome,
-} from "@/lib/reports/dashboardDownloads";
+import { downloadRunOwnerPack, type DownloadOutcome } from "@/lib/reports/dashboardDownloads";
 import { downloadFile } from "@/lib/reportDraftHtml";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -92,23 +88,9 @@ export function RunHistoryRow({
   propertyName: string;
   onQuickView: (run: PortfolioRun) => void;
 }) {
-  const [busy, setBusy] = useState<"excel" | "pack" | "report" | null>(null);
+  const [busy, setBusy] = useState<"pack" | "report" | null>(null);
   const products = runProducts(run);
   const isDaily = run.reportKind === "daily_detailed";
-
-  const saveWorkbook = useCallback(async () => {
-    setBusy("excel");
-    try {
-      report(
-        await downloadRunWorkbook(
-          run.excelPath,
-          `${slug(propertyName)}-daily-detailed-${run.asOfDate}.xlsx`,
-        ),
-      );
-    } finally {
-      setBusy(null);
-    }
-  }, [run.excelPath, run.asOfDate, propertyName]);
 
   const saveReport = useCallback(async () => {
     setBusy("report");
@@ -168,19 +150,6 @@ export function RunHistoryRow({
           </span>
           <span className="ml-auto flex items-center gap-1.5">
             <RunStatusPill status={run.status} />
-            {isDaily && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2"
-                onClick={() => void saveWorkbook()}
-                disabled={!run.excelPath || busy !== null}
-                title={run.excelPath ? "Download the spreadsheet" : "No spreadsheet built yet"}
-              >
-                {busy === "excel" ? spinner : <FileSpreadsheet className="h-3.5 w-3.5" />}
-                <span className="sr-only">Download spreadsheet</span>
-              </Button>
-            )}
             {run.specialReportCount > 0 && (
               <Button
                 variant="ghost"
