@@ -120,17 +120,35 @@ const toGrid = (workbook: XLSX.WorkBook, name: string, maxRows?: number): Grid =
   });
 };
 
-const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
+/**
+ * Both readings of a PDF in one pass: `flat` is the merged single text run the
+ * movement prints are read from, `lines` keeps the print's own rows (grouped by
+ * their y position) so the Hotel Status grid can be read row by row.
+ */
+const pdfText = async (buffer: ArrayBuffer): Promise<{ flat: string; lines: string }> => {
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
   const parts: string[] = [];
+  const rows: string[] = [];
   for (let page = 1; page <= pdf.numPages; page += 1) {
     const content = await (await pdf.getPage(page)).getTextContent();
-    for (const item of content.items as Array<{ str?: string }>) {
-      if (typeof item.str === "string" && item.str.trim()) parts.push(item.str);
+    let lastY: number | null = null;
+    let current: string[] = [];
+    for (const item of content.items as Array<{ str?: string; transform?: number[] }>) {
+      if (typeof item.str !== "string" || !item.str.trim()) continue;
+      parts.push(item.str);
+      const y = Array.isArray(item.transform) ? item.transform[5] : null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 1.5) {
+        if (current.length) rows.push(current.join(" "));
+        current = [];
+      }
+      if (y !== null) lastY = y;
+      current.push(item.str.trim());
     }
+    if (current.length) rows.push(current.join(" "));
   }
-  return parts.join(" ");
+  return { flat: parts.join(" "), lines: rows.join("\n") };
 };
+
 
 /**
  * The team's old running spreadsheet. The report is built from the database, so
