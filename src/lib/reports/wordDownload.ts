@@ -93,16 +93,7 @@ export async function downloadReportAsWord(
     return { ok: false, message: "Could not read the stored report." };
   }
 
-  const blob = new Blob([reportHtmlToWord(html, documentTitle)], {
-    type: "application/msword",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = wordFileName(documentTitle);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  saveReportHtmlAsWord(html, documentTitle);
   return { ok: true };
 }
+
