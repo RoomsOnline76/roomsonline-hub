@@ -16,6 +16,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { zipSync } from "npm:fflate@0.8.2";
+
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
