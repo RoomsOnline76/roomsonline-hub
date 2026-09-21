@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
       }
       const { data: run, error } = await supabase
         .from("report_runs")
-        .select("id, title, excel_path, draft_report_path, properties(name)")
+        .select("id, title, draft_report_path, properties(name)")
         .eq("id", runId)
         .maybeSingle();
       if (error) throw error;
@@ -324,7 +324,6 @@ Deno.serve(async (req) => {
       const folderId = await driveFolder(folderName, parentFolderId);
 
       const targets = [
-        { path: (run as { excel_path?: string | null }).excel_path, suffix: ".xlsx" },
         { path: (run as { draft_report_path?: string | null }).draft_report_path, suffix: ".html" },
       ].filter((t) => Boolean(t.path)) as { path: string; suffix: string }[];
 
