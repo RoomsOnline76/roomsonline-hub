@@ -40,13 +40,30 @@ Deno.serve(async (req) => {
     if (accessError) return json({ error: accessError.message }, 500);
     if (!allowed) return json({ error: "Not authorised for revenue reports" }, 403);
 
-    const form = await req.formData();
-    const propertyId = String(form.get("property_id") ?? "");
-    const file = form.get("file");
+    // The panel posts the file; an operator rerun may instead name a workbook
+    // already stored in the reports bucket.
+    let propertyId = "";
+    let buffer: ArrayBuffer | null = null;
+    if ((req.headers.get("content-type") ?? "").includes("multipart/form-data")) {
+      const form = await req.formData();
+      propertyId = String(form.get("property_id") ?? "");
+      const file = form.get("file");
+      if (!(file instanceof File)) return json({ error: "A workbook file is required" }, 400);
+      buffer = await file.arrayBuffer();
+    } else {
+      const body = await req.json().catch(() => ({}));
+      propertyId = String(body?.property_id ?? "");
+      const storagePath = String(body?.storage_path ?? "");
+      if (!storagePath) return json({ error: "A workbook file is required" }, 400);
+      const download = await admin.storage.from("revenue-reports").download(storagePath);
+      if (download.error || !download.data) {
+        return json({ error: download.error?.message ?? "workbook download failed" }, 404);
+      }
+      buffer = await download.data.arrayBuffer();
+    }
     if (!propertyId) return json({ error: "property_id is required" }, 400);
-    if (!(file instanceof File)) return json({ error: "A workbook file is required" }, 400);
 
-    const repaired = await repairWorkbookBuffer(await file.arrayBuffer());
+    const repaired = await repairWorkbookBuffer(buffer);
     const workbook = XLSX.read(new Uint8Array(repaired.buffer), { type: "array" });
 
     // The consolidated workbook repeats the same financial form on every day
