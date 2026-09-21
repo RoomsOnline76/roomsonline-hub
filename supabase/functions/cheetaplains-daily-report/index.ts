@@ -547,6 +547,7 @@ Deno.serve(async (req) => {
     // each date is kept once: a row carrying figures beats an all-zero row, and
     // otherwise the most recently uploaded file wins.
     const dayByDate = new Map<string, ProtelDay>();
+    const tentativeByDate = new Map<string, ProtelDay>();
     const supersededDates: string[] = [];
     const carriesFigures = (day: ProtelDay): boolean =>
       (day.roomsOccupied ?? 0) > 0 ||
@@ -554,14 +555,18 @@ Deno.serve(async (req) => {
       (day.total ?? 0) > 0 ||
       (day.arrivalRooms ?? 0) > 0 ||
       (day.departureRooms ?? 0) > 0;
-    const keepDay = (day: ProtelDay): void => {
-      const existing = dayByDate.get(day.date);
+    // Confirmed and provisional prints are deduped inside their own set only,
+    // so a provisional re-print can never displace the confirmed day.
+    const keepDay = (day: ProtelDay, filter: HouseStateFilter): void => {
+      const target = filter === "provisional" ? tentativeByDate : dayByDate;
+      const existing = target.get(day.date);
       if (existing) {
-        supersededDates.push(day.date);
+        if (filter === "confirmed") supersededDates.push(day.date);
         if (carriesFigures(existing) && !carriesFigures(day)) return;
       }
-      dayByDate.set(day.date, day);
+      target.set(day.date, day);
     };
+
 
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
     const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
