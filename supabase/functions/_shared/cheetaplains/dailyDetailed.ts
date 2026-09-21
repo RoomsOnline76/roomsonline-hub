@@ -65,10 +65,18 @@ export interface DailyFigures {
   monthOnBooks: DailyPeriodFigures;
   /** Provisional (unconfirmed) business for the report month. */
   enquiries: { revenue: number; nights: number } | null;
+  /**
+   * The day as it reads on the provisional (Optional / Tentative) prints. Never
+   * part of revenue on the books — it prints as its own line.
+   */
+  provisionalDay: { villasOccupied: number; accommodation: number; total: number } | null;
+  /** The whole month on the provisional prints. */
+  provisionalMonth: DailyPeriodFigures | null;
   created: DailyMovement | null;
   cancelled: DailyMovement | null;
   villaCount: number | null;
 }
+
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
@@ -92,8 +100,13 @@ const period = (days: ProtelDay[], villaCount: number | null): DailyPeriodFigure
 };
 
 export interface DailyFiguresInput {
-  /** Every daily row parsed from the run's House State exports. */
+  /** Daily rows from the confirmed House State exports. */
   days: ProtelDay[];
+  /**
+   * Daily rows from the provisional (Optional / Tentative) House State exports.
+   * Reported separately and never added to revenue on the books.
+   */
+  provisionalDays?: ProtelDay[];
   /** The business day the report covers. */
   date: string;
   /** Sellable villas, from the property's report settings when configured. */
@@ -118,6 +131,11 @@ export function buildDailyFigures(input: DailyFiguresInput): DailyFigures | null
   const toDate = monthDays.filter((day) => day.date <= input.date);
   const enquiry = input.provisionalMonths[month];
 
+  const tentativeDays = (input.provisionalDays ?? []).filter(
+    (day) => day.date.slice(0, 7) === month,
+  );
+  const tentativeToday = tentativeDays.find((day) => day.date === input.date);
+
   return {
     date: input.date,
     villasOccupied: today.roomsOccupied,
@@ -133,6 +151,14 @@ export function buildDailyFigures(input: DailyFiguresInput): DailyFigures | null
     monthToDate: period(toDate, villaCount),
     monthOnBooks: period(monthDays, villaCount),
     enquiries: enquiry ? { revenue: round2(enquiry.revenue), nights: enquiry.nights } : null,
+    provisionalDay: tentativeToday
+      ? {
+        villasOccupied: tentativeToday.roomsOccupied,
+        accommodation: round2(tentativeToday.accommodation),
+        total: round2(tentativeToday.total),
+      }
+      : null,
+    provisionalMonth: tentativeDays.length ? period(tentativeDays, villaCount) : null,
     created: input.created,
     cancelled: input.cancelled,
     villaCount,
@@ -147,6 +173,7 @@ export function monthlyOnBooks(
   const byMonth = new Map<string, ProtelDay[]>();
   for (const day of days) {
     const key = day.date.slice(0, 7);
+
     const bucket = byMonth.get(key);
     if (bucket) bucket.push(day);
     else byMonth.set(key, [day]);

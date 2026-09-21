@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Printer } from "lucide-react";
+import { ArrowLeft, FileType2, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { reportsPath } from "@/lib/config";
 import { extractDocumentTitle, htmlToBlobUrl, printFrameWithTitle } from "@/lib/reportDraftHtml";
+import { saveReportHtmlAsWord } from "@/lib/reports/wordDownload";
 import { usePageSEO } from "@/hooks/usePageSEO";
+
 
 const BUCKET = "revenue-reports";
 
@@ -22,7 +24,9 @@ export default function ReportsDraftView() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState<string | null>(null);
+  const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
 
   usePageSEO({
     title: documentTitle ?? "Report preview | Rooms Online",
@@ -69,10 +73,11 @@ export default function ReportsDraftView() {
 
       try {
         const response = await fetch(signed.data.signedUrl);
-        const html = await response.text();
+        const loaded = await response.text();
         if (cancelled) return;
-        objectUrl = htmlToBlobUrl(html);
-        setDocumentTitle(extractDocumentTitle(html));
+        objectUrl = htmlToBlobUrl(loaded);
+        setDocumentTitle(extractDocumentTitle(loaded));
+        setHtml(loaded);
         setUrl(objectUrl);
       } catch {
         if (!cancelled) setError("Could not load the report contents.");
@@ -90,6 +95,13 @@ export default function ReportsDraftView() {
     printFrameWithTitle(frameRef.current, documentTitle);
   }, [documentTitle]);
 
+  // The same page Word-side: identical layout, tables and graphs as the PDF.
+  const handleWord = useCallback(() => {
+    if (!html) return;
+    saveReportHtmlAsWord(html, documentTitle ?? "Report");
+  }, [html, documentTitle]);
+
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -102,10 +114,17 @@ export default function ReportsDraftView() {
           </Button>
           <p className="text-sm text-muted-foreground truncate">{documentTitle ?? "Report preview"}</p>
         </div>
-        <Button size="sm" onClick={handlePrint} disabled={!url}>
-          <Printer className="h-4 w-4 mr-2" />
-          Save as PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={handlePrint} disabled={!url}>
+            <Printer className="h-4 w-4 mr-2" />
+            Save as PDF
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleWord} disabled={!html}>
+            <FileType2 className="h-4 w-4 mr-2" />
+            Save as Word
+          </Button>
+        </div>
+
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

@@ -40,6 +40,21 @@ export interface ProtelTotals {
   total: number;
 }
 
+/**
+ * Which reservation states the print was filtered to. protel prints the filter in
+ * its parameter footer (`State: Confirmed` or `State: Optional, Tentative`), and
+ * Cheetah Plains exports both sets for every month — confirmed business and
+ * provisional (optional/tentative) business must never be added together.
+ */
+export type HouseStateFilter = "confirmed" | "provisional";
+
+/** Reads the printed `State:` filter. Unknown or absent reads as confirmed. */
+export function classifyHouseStateFilter(raw: string): HouseStateFilter {
+  return /optional|tentative|waitlist|option\b|provisional|enquir/i.test(raw)
+    ? "provisional"
+    : "confirmed";
+}
+
 export interface ProtelParseResult {
   days: ProtelDay[];
   totals: ProtelTotals | null;
@@ -47,11 +62,16 @@ export interface ProtelParseResult {
   period: { from: string; to: string } | null;
   /** Rooms in the house implied by free + occupied (median across the month). */
   impliedRooms: number | null;
+  /** Reservation states the print covers, from the parameter footer. */
+  filter: HouseStateFilter;
+  /** The raw printed `State:` text, when present. */
+  filterText: string | null;
   /** Fatal problems — the file must be rejected. */
   errors: string[];
   /** Non-fatal observations worth surfacing on the run. */
   warnings: string[];
 }
+
 
 type Grid = unknown[][];
 
@@ -170,6 +190,7 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
   const days: ProtelDay[] = [];
   let totals: ProtelTotals | null = null;
   let period: ProtelParseResult["period"] = null;
+  let filterText: string | null = null;
 
   const anchors = findAnchors(grid);
   if (!isHouseStateGrid(grid)) {
@@ -178,6 +199,8 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
       totals,
       period,
       impliedRooms: null,
+      filter: "confirmed",
+      filterText: null,
       errors: [`${filename}: not a protel House State export (header labels not found)`],
       warnings,
     };
@@ -192,11 +215,24 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     const row = raw ?? [];
     const labels = row.map((cell) => text(cell).toLowerCase());
 
+    const stateIndex = labels.findIndex((label) => label === "state:");
+    if (stateIndex >= 0) {
+      for (let c = stateIndex + 1; c < row.length; c += 1) {
+        const value = text(row[c]);
+        if (value) {
+          filterText = value;
+          break;
+        }
+      }
+      continue;
+    }
+
     if (labels.some((label) => label === "reporting period:")) {
       const dates = dateCells(row);
       if (dates.length >= 2) period = { from: dates[0], to: dates[dates.length - 1] };
       continue;
     }
+
     if (labels.some((label) => label.startsWith("sum / page"))) continue;
     if (!seenTotalRow && labels.some((label) => label === "total") && dateCells(row).length === 0) {
       const occupied = read(row, "occupied");
@@ -238,10 +274,13 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     });
   }
 
+  const filter = classifyHouseStateFilter(filterText ?? "");
+
   if (!days.length) {
     errors.push(`${filename}: no daily rows could be read from the House State grid`);
-    return { days, totals, period, impliedRooms: null, errors, warnings };
+    return { days, totals, period, impliedRooms: null, filter, filterText, errors, warnings };
   }
+
 
   // Reconciliation against the printed Total row — a mismatch means the grid was
   // misread, so the file is rejected rather than silently under-reporting.
@@ -262,10 +301,12 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     warnings.push(`${filename}: no Total row found — daily rows could not be reconciled`);
   }
 
-  // A print with no rooms sold and no revenue anywhere is almost always the
-  // wrong export (wrong hotel or filter), and it would otherwise zero a day
-  // that was really sold. It stays readable, but the run says so.
+  // A confirmed print with no rooms sold and no revenue anywhere is almost always
+  // the wrong export (wrong hotel or filter), and it would otherwise zero a day
+  // that was really sold. It stays readable, but the run says so. A provisional
+  // print is legitimately empty whenever there is no tentative business.
   if (
+    filter === "confirmed" &&
     days.length > 0 &&
     days.every(
       (day) =>
@@ -281,6 +322,7 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     );
   }
 
+
   const months = new Set(days.map((day) => day.date.slice(0, 7)));
   if (months.size > 1) {
     warnings.push(`${filename}: covers more than one month (${[...months].sort().join(", ")})`);
@@ -290,8 +332,157 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     days.map((day) => day.freeRooms + day.roomsOccupied).filter((value) => value > 0),
   );
 
-  return { days, totals, period, impliedRooms, errors, warnings };
+  return { days, totals, period, impliedRooms, filter, filterText, errors, warnings };
 }
+
+/** European print number: `1.234,50` → 1234.5, `0,00` → 0. */
+function printNumber(raw: string): number {
+  const cleaned = raw.trim().replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
+  if (!cleaned || cleaned === "-") return NaN;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+/** True when extracted PDF text looks like a protel House State / Hotel Status print. */
+export function isHouseStatePdfText(raw: string): boolean {
+  const lower = raw.toLowerCase();
+  return (
+    /reporting period/.test(lower) &&
+    /occupied/.test(lower) &&
+    /extras/.test(lower) &&
+    /\b\d{2}-\d{2}-\d{4}\b/.test(raw)
+  );
+}
+
+/**
+ * Parses the PDF rendering of the same print. The team exports Hotel Status as a
+ * PDF on some days, so the day must read identically either way. Each day line is
+ * `[weekday,] DD-MM-YYYY` followed by seventeen printed numbers in header order:
+ * free, free %, occupied, occupied %, bed %, arrivals #, arrivals pers,
+ * departures #, pers, in-house #, pers, Ø accommodation, F&B, extras, total, Ø #,
+ * Ø pers.
+ */
+export function parseHouseStatePdfText(raw: string, filename: string): ProtelParseResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const days: ProtelDay[] = [];
+  let totals: ProtelTotals | null = null;
+  let period: ProtelParseResult["period"] = null;
+  let filterText: string | null = null;
+
+  if (!isHouseStatePdfText(raw)) {
+    return {
+      days,
+      totals,
+      period,
+      impliedRooms: null,
+      filter: "confirmed",
+      filterText: null,
+      errors: [`${filename}: not a protel House State print`],
+      warnings,
+    };
+  }
+
+  const lines = raw.split(/\r?\n/);
+  const numberToken = /^-?[\d.]*\d(?:,\d+)?$|^-$|^0,00$/;
+
+  for (const line of lines) {
+    const compact = line.replace(/\u00a0/g, " ").trim();
+    if (!compact) continue;
+
+    const stateMatch = compact.match(/^state:\s*(.+)$/i);
+    if (stateMatch) {
+      filterText = stateMatch[1].trim();
+      continue;
+    }
+    const periodMatch = compact.match(
+      /reporting period:\s*(\d{2}-\d{2}-\d{4})\s*-\s*(\d{2}-\d{2}-\d{4})/i,
+    );
+    if (periodMatch) {
+      const from = protelDateToIso(periodMatch[1]);
+      const to = protelDateToIso(periodMatch[2]);
+      if (from && to) period = { from, to };
+      continue;
+    }
+    if (/^sum\s*\/\s*page/i.test(compact)) continue;
+
+    const tokens = compact.split(/\s+/).filter(Boolean);
+
+    if (/^total$/i.test(tokens[0] ?? "") && !totals) {
+      const numbers = tokens.slice(1).filter((token) => numberToken.test(token)).map(printNumber)
+        .filter((value) => Number.isFinite(value));
+      // Printed total row: occupied nights sit third, accommodation twelfth.
+      if (numbers.length >= 15) {
+        totals = {
+          roomsOccupied: numbers[2],
+          accommodation: numbers[11],
+          total: numbers[14],
+        };
+      }
+      continue;
+    }
+
+    const dateIndex = tokens.findIndex((token) => /^\d{2}-\d{2}-\d{4}$/.test(token));
+    if (dateIndex < 0) continue;
+    const iso = protelDateToIso(tokens[dateIndex]);
+    if (!iso) continue;
+
+    const numbers = tokens
+      .slice(dateIndex + 1)
+      .filter((token) => numberToken.test(token))
+      .map(printNumber)
+      .filter((value) => Number.isFinite(value));
+    if (numbers.length < 15) continue;
+
+    days.push({
+      date: iso,
+      freeRooms: numbers[0],
+      roomsOccupied: numbers[2],
+      arrivalRooms: numbers[5],
+      departureRooms: numbers[7],
+      accommodation: numbers[11],
+      foodAndBeverage: numbers[12],
+      extras: numbers[13],
+      total: numbers[14],
+    });
+  }
+
+  const filter = classifyHouseStateFilter(filterText ?? "");
+
+  if (!days.length) {
+    errors.push(`${filename}: no daily rows could be read from the House State print`);
+    return { days, totals, period, impliedRooms: null, filter, filterText, errors, warnings };
+  }
+
+  if (totals) {
+    const nightsSum = days.reduce((sum, day) => sum + day.roomsOccupied, 0);
+    const accommodationSum = round2(days.reduce((sum, day) => sum + day.accommodation, 0));
+    if (nightsSum !== totals.roomsOccupied) {
+      errors.push(
+        `${filename}: daily rooms occupied (${nightsSum}) does not match the printed total (${totals.roomsOccupied})`,
+      );
+    }
+    if (Math.abs(accommodationSum - totals.accommodation) > 1) {
+      errors.push(
+        `${filename}: daily accommodation revenue (${accommodationSum.toFixed(2)}) does not match the printed total (${totals.accommodation.toFixed(2)})`,
+      );
+    }
+  } else {
+    warnings.push(`${filename}: no Total row found — daily rows could not be reconciled`);
+  }
+
+  const months = new Set(days.map((day) => day.date.slice(0, 7)));
+  if (months.size > 1) {
+    warnings.push(`${filename}: covers more than one month (${[...months].sort().join(", ")})`);
+  }
+
+  const impliedRooms = median(
+    days.map((day) => day.freeRooms + day.roomsOccupied).filter((value) => value > 0),
+  );
+
+  return { days, totals, period, impliedRooms, filter, filterText, errors, warnings };
+}
+
 
 /** A revenue segment share used to split otherwise undifferentiated nights. */
 export interface ProtelSegmentShare {

@@ -18,7 +18,15 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
-import { isHouseStateGrid, parseHouseState, type ProtelDay } from "../_shared/protel/houseState.ts";
+import {
+  isHouseStateGrid,
+  isHouseStatePdfText,
+  parseHouseState,
+  parseHouseStatePdfText,
+  type HouseStateFilter,
+  type ProtelDay,
+} from "../_shared/protel/houseState.ts";
+
 import {
   isProvisionalGrid,
   parseProvisionalGrid,
@@ -73,7 +81,13 @@ type PipelineTotals = {
 };
 
 type DailyPayload =
-  | { kind: "house_state"; days: ProtelDay[] }
+  /**
+   * One House State / Hotel Status print. `filter` says which reservation states
+   * it covered: confirmed business, or provisional (optional / tentative) business
+   * that must never be added to revenue on the books.
+   */
+  | { kind: "house_state"; days: ProtelDay[]; filter?: HouseStateFilter }
+
   | { kind: "provisional"; months: Record<string, { revenue: number; nights: number }> }
   | { kind: "pipeline"; roles: Partial<Record<PipelineRole, PipelineTotals>> }
   | { kind: "created" | "cancelled"; movement: DailyMovement }
@@ -106,17 +120,35 @@ const toGrid = (workbook: XLSX.WorkBook, name: string, maxRows?: number): Grid =
   });
 };
 
-const pdfText = async (buffer: ArrayBuffer): Promise<string> => {
+/**
+ * Both readings of a PDF in one pass: `flat` is the merged single text run the
+ * movement prints are read from, `lines` keeps the print's own rows (grouped by
+ * their y position) so the Hotel Status grid can be read row by row.
+ */
+const pdfText = async (buffer: ArrayBuffer): Promise<{ flat: string; lines: string }> => {
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
   const parts: string[] = [];
+  const rows: string[] = [];
   for (let page = 1; page <= pdf.numPages; page += 1) {
     const content = await (await pdf.getPage(page)).getTextContent();
-    for (const item of content.items as Array<{ str?: string }>) {
-      if (typeof item.str === "string" && item.str.trim()) parts.push(item.str);
+    let lastY: number | null = null;
+    let current: string[] = [];
+    for (const item of content.items as Array<{ str?: string; transform?: number[] }>) {
+      if (typeof item.str !== "string" || !item.str.trim()) continue;
+      parts.push(item.str);
+      const y = Array.isArray(item.transform) ? item.transform[5] : null;
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 1.5) {
+        if (current.length) rows.push(current.join(" "));
+        current = [];
+      }
+      if (y !== null) lastY = y;
+      current.push(item.str.trim());
     }
+    if (current.length) rows.push(current.join(" "));
   }
-  return parts.join(" ");
+  return { flat: parts.join(" "), lines: rows.join("\n") };
 };
+
 
 /**
  * The team's old running spreadsheet. The report is built from the database, so
@@ -283,18 +315,47 @@ Deno.serve(async (req) => {
 
             if (isPdf) {
               try {
-                const movement = parseMovementPdf(await pdfText(buffer));
-                if (movement.kind === "unknown") {
-                  notes.push(`${filename}: not a created/cancelled reservations print — skipped`);
+                const text = await pdfText(buffer);
+                // The team prints Hotel Status as a PDF as often as a spreadsheet,
+                // so the same grid is read from either.
+                if (isHouseStatePdfText(text.lines)) {
+                  const parsed = parseHouseStatePdfText(text.lines, filename);
+                  entry = parsed.days.length
+                    ? {
+                      payload: {
+                        kind: "house_state",
+                        days: parsed.days,
+                        filter: parsed.filter,
+                      },
+                      notes: [...notes, ...parsed.errors, ...parsed.warnings],
+                      ok: parsed.errors.length === 0,
+                      rows: parsed.days.length,
+                    }
+                    : {
+                      payload: { kind: "skipped" },
+                      notes: [
+                        ...notes,
+                        ...parsed.errors,
+                        `${filename}: Hotel Status print carried no day rows`,
+                      ],
+                      ok: false,
+                      rows: 0,
+                    };
                 } else {
-                  entry = {
-                    payload: { kind: movement.kind, movement: movement.movement },
-                    notes,
-                    ok: true,
-                    rows: movement.movement.count,
-                  };
+                  const movement = parseMovementPdf(text.flat);
+                  if (movement.kind === "unknown") {
+                    notes.push(`${filename}: not a created/cancelled reservations print — skipped`);
+                  } else {
+                    entry = {
+                      payload: { kind: movement.kind, movement: movement.movement },
+                      notes,
+                      ok: true,
+                      rows: movement.movement.count,
+                    };
+                  }
                 }
               } catch (error) {
+
                 entry = {
                   payload: { kind: "skipped" },
                   notes: [
@@ -399,7 +460,12 @@ Deno.serve(async (req) => {
                       };
                     } else {
                       entry = {
-                        payload: { kind: "house_state", days: houseState.days },
+                        payload: {
+                          kind: "house_state",
+                          days: houseState.days,
+                          filter: houseState.filter,
+                        },
+
                         notes: houseState.warnings,
                         ok: true,
                         rows: houseState.days.length,
@@ -481,6 +547,7 @@ Deno.serve(async (req) => {
     // each date is kept once: a row carrying figures beats an all-zero row, and
     // otherwise the most recently uploaded file wins.
     const dayByDate = new Map<string, ProtelDay>();
+    const tentativeByDate = new Map<string, ProtelDay>();
     const supersededDates: string[] = [];
     const carriesFigures = (day: ProtelDay): boolean =>
       (day.roomsOccupied ?? 0) > 0 ||
@@ -488,14 +555,18 @@ Deno.serve(async (req) => {
       (day.total ?? 0) > 0 ||
       (day.arrivalRooms ?? 0) > 0 ||
       (day.departureRooms ?? 0) > 0;
-    const keepDay = (day: ProtelDay): void => {
-      const existing = dayByDate.get(day.date);
+    // Confirmed and provisional prints are deduped inside their own set only,
+    // so a provisional re-print can never displace the confirmed day.
+    const keepDay = (day: ProtelDay, filter: HouseStateFilter): void => {
+      const target = filter === "provisional" ? tentativeByDate : dayByDate;
+      const existing = target.get(day.date);
       if (existing) {
-        supersededDates.push(day.date);
+        if (filter === "confirmed") supersededDates.push(day.date);
         if (carriesFigures(existing) && !carriesFigures(day)) return;
       }
-      dayByDate.set(day.date, day);
+      target.set(day.date, day);
     };
+
 
     const provisionalMonths: Record<string, { revenue: number; nights: number }> = {};
     const pipeline: Partial<Record<PipelineRole, PipelineTotals>> = {};
@@ -509,7 +580,8 @@ Deno.serve(async (req) => {
       results.push({ id: file.id, ok: entry.ok, rows: entry.rows, notes: entry.notes ?? [] });
       const payload = entry.payload;
       if (payload.kind === "house_state") {
-        for (const day of payload.days) keepDay(day);
+        for (const day of payload.days) keepDay(day, payload.filter ?? "confirmed");
+
       } else if (payload.kind === "provisional") {
         for (const [month, bucket] of Object.entries(payload.months ?? {})) {
           const target = provisionalMonths[month] ?? { revenue: 0, nights: 0 };
@@ -531,11 +603,19 @@ Deno.serve(async (req) => {
     const days: ProtelDay[] = [...dayByDate.values()].sort((left, right) =>
       left.date.localeCompare(right.date),
     );
+    const tentativeDays: ProtelDay[] = [...tentativeByDate.values()].sort((left, right) =>
+      left.date.localeCompare(right.date),
+    );
     const dayNotes = supersededDates.length
       ? [
         `${supersededDates.length} day(s) appear in more than one House State export — the print carrying figures was used`,
       ]
       : [];
+    if (tentativeDays.length) {
+      dayNotes.push(
+        `${tentativeDays.length} day(s) read from provisional (optional / tentative) prints — reported apart from revenue on the books`,
+      );
+    }
 
     // Enquiries: the tracker's provisional sheet when the run carries it,
     // otherwise whatever a reservation-style provisional export gave.
@@ -548,14 +628,39 @@ Deno.serve(async (req) => {
     if (!created && pasted.created) created = pasted.created;
     if (!cancelled && pasted.cancelled) cancelled = pasted.cancelled;
 
+    // The tracker's own confirmed and cancellation sheets are the last fallback
+    // for the movement line when the run carries no movement print at all.
+    if (!created && pipeline.confirmed) {
+      created = {
+        count: pipeline.confirmed.count,
+        value: pipeline.confirmed.value,
+        nights: null,
+        period: null,
+        statuses: [],
+      };
+      dayNotes.push("Reservations created read from the tracker's confirmed sheet");
+    }
+    if (!cancelled && pipeline.cancelled) {
+      cancelled = {
+        count: pipeline.cancelled.count,
+        value: pipeline.cancelled.value,
+        nights: null,
+        period: null,
+        statuses: [],
+      };
+      dayNotes.push("Reservations cancelled read from the tracker's cancellations sheet");
+    }
+
     const figures = buildDailyFigures({
       days,
+      provisionalDays: tentativeDays,
       date: asOf,
       villaCount: settings?.room_count ?? null,
       provisionalMonths,
       created,
       cancelled,
     });
+
 
     if (!figures) {
       const message = `No House State row for ${asOf} was found in the uploaded files`;

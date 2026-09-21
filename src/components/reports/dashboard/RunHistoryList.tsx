@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, FileText, Loader2, Wrench } from "lucide-react";
+import { Eye, FileText, FileType2, Loader2, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -10,6 +10,8 @@ import { reportsPath } from "@/lib/config";
 import { sourceLabel } from "@/lib/report-adapters";
 import { downloadRunOwnerPack, type DownloadOutcome } from "@/lib/reports/dashboardDownloads";
 import { downloadFile } from "@/lib/reportDraftHtml";
+import { downloadReportAsWord } from "@/lib/reports/wordDownload";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { PortfolioRun } from "@/hooks/useReportPortfolio";
@@ -88,32 +90,56 @@ export function RunHistoryRow({
   propertyName: string;
   onQuickView: (run: PortfolioRun) => void;
 }) {
-  const [busy, setBusy] = useState<"pack" | "report" | null>(null);
+  const [busy, setBusy] = useState<"pack" | "report" | "word" | null>(null);
   const products = runProducts(run);
   const isDaily = run.reportKind === "daily_detailed";
+
+  const signedReport = useCallback(async (): Promise<string | null> => {
+    if (!run.draftPath) {
+      report({ ok: false, message: "No report has been generated for this run yet." });
+      return null;
+    }
+    const { data } = await supabase.storage
+      .from("revenue-reports")
+      .createSignedUrl(run.draftPath, 60 * 30);
+    if (!data?.signedUrl) {
+      report({ ok: false, message: "Could not open the report file." });
+      return null;
+    }
+    return data.signedUrl;
+  }, [run.draftPath]);
 
   const saveReport = useCallback(async () => {
     setBusy("report");
     try {
-      if (!run.draftPath) {
-        report({ ok: false, message: "No report has been generated for this run yet." });
-        return;
-      }
-      const { data } = await supabase.storage
-        .from("revenue-reports")
-        .createSignedUrl(run.draftPath, 60 * 30);
-      if (!data?.signedUrl) {
-        report({ ok: false, message: "Could not open the report file." });
-        return;
-      }
+      const url = await signedReport();
+      if (!url) return;
       await downloadFile(
-        data.signedUrl,
+        url,
         `${slug(propertyName)}-${isDaily ? "daily-report" : "report"}-${run.asOfDate}.html`,
       );
     } finally {
       setBusy(null);
     }
-  }, [run.draftPath, run.asOfDate, propertyName, isDaily]);
+  }, [signedReport, run.asOfDate, propertyName, isDaily]);
+
+  // Word is the same stored report, wrapped so Word opens it in that layout.
+  const saveWord = useCallback(async () => {
+    setBusy("word");
+    try {
+      const url = await signedReport();
+      if (!url) return;
+      report(
+        await downloadReportAsWord(
+          url,
+          `${propertyName} - ${isDaily ? "Daily Detailed Report" : "Report"} - ${formatDay(run.asOfDate)}`,
+        ),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [signedReport, run.asOfDate, propertyName, isDaily]);
+
 
   const savePack = useCallback(async () => {
     setBusy("pack");
@@ -174,6 +200,18 @@ export function RunHistoryRow({
               {busy === "report" ? spinner : <FileText className="h-3.5 w-3.5" />}
               <span className="sr-only">Download report</span>
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={() => void saveWord()}
+              disabled={!run.hasDraft || busy !== null}
+              title={run.hasDraft ? "Download the report for Word" : "No report generated yet"}
+            >
+              {busy === "word" ? spinner : <FileType2 className="h-3.5 w-3.5" />}
+              <span className="sr-only">Download report for Word</span>
+            </Button>
+
             <Button
               variant="ghost"
               size="sm"
