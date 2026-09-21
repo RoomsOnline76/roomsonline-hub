@@ -241,7 +241,7 @@ export function useDailyDetailedReport(
   }> => {
     if (!runId) return { ok: false, message: "No run selected" };
     const outcome = await call({ run_id: runId, mode: "pack" });
-    if (!outcome.ok) return { ok: false, message: outcome.message };
+    if (!outcome.ok) return { ok: false, message: "message" in outcome ? outcome.message : undefined };
     const url = outcome.data.url ? String(outcome.data.url) : undefined;
     return url ? { ok: true, url } : { ok: false, message: "The pack could not be stored" };
   }, [runId, call]);
