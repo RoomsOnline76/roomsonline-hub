@@ -41,6 +41,8 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
 
   const reportUrl = useMemo(() => result?.reportUrl ?? storedReportUrl, [result, storedReportUrl]);
 
+  const [savingWord, setSavingWord] = useState(false);
+
   const openReport = async () => {
     if (!reportUrl) {
       toast.error("Build the day first");
@@ -50,6 +52,25 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
     const tab = window.open(rendered.url, "_blank", "noopener");
     if (!tab) toast.error("Allow pop-ups to open the report");
   };
+
+  // The Word file is the stored report itself, so it always matches the PDF.
+  const saveWord = async () => {
+    if (!reportUrl) {
+      toast.error("Build the day first");
+      return;
+    }
+    setSavingWord(true);
+    try {
+      const outcome = await downloadReportAsWord(
+        reportUrl,
+        result?.documentTitle ?? `Daily Detailed Report ${ctx.run.as_of_date ?? ""}`.trim(),
+      );
+      if (!outcome.ok) toast.error(outcome.message ?? "Could not save the Word report");
+    } finally {
+      setSavingWord(false);
+    }
+  };
+
 
   return (
     <div className="space-y-4">
