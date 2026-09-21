@@ -63,7 +63,7 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
     try {
       const outcome = await downloadReportAsWord(
         reportUrl,
-        result?.documentTitle ?? `Daily Detailed Report ${ctx.run.as_of_date ?? ""}`.trim(),
+        result?.documentTitle ?? `Daily Detailed Report ${ctx.run.asOfDate ?? ""}`.trim(),
       );
       if (!outcome.ok) toast.error(outcome.message ?? "Could not save the Word report");
     } finally {
