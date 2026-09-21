@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FileType2, Loader2, Play, Trash2 } from "lucide-react";
+import { FileArchive, FileText, FileType2, Loader2, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -42,6 +42,29 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
   const reportUrl = useMemo(() => result?.reportUrl ?? storedReportUrl, [result, storedReportUrl]);
 
   const [savingWord, setSavingWord] = useState(false);
+  const [savingPack, setSavingPack] = useState(false);
+
+  // The pack is built from the stored report, so it always matches the PDF.
+  const savePack = async () => {
+    setSavingPack(true);
+    try {
+      const outcome = await ctx.onDailyPack();
+      if (!outcome.ok || !outcome.url) {
+        toast.error(outcome.message ?? "Could not build the Canva pack");
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = outcome.url;
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Canva pack ready");
+    } finally {
+      setSavingPack(false);
+    }
+  };
+
 
   const openReport = async () => {
     if (!reportUrl) {
