@@ -165,7 +165,15 @@ export function buildDailyFigures(input: DailyFiguresInput): DailyFigures | null
   };
 }
 
+/** Revenue, nights and capacity per `YYYY-MM` across every House State row. */
+export function monthlyOnBooks(
+  days: ProtelDay[],
+  villaCount: number | null,
+): Record<string, DailyPeriodFigures> {
+  const byMonth = new Map<string, ProtelDay[]>();
+  for (const day of days) {
     const key = day.date.slice(0, 7);
+
     const bucket = byMonth.get(key);
     if (bucket) bucket.push(day);
     else byMonth.set(key, [day]);
