@@ -51,7 +51,12 @@ import {
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
-import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
+import {
+  buildDailyReportHtml,
+  dailyYearChartSvg,
+  dailyYearCsv,
+} from "../_shared/cheetaplains/dailyReportHtml.ts";
+
 import {
   buildYearGrids,
   fiscalYearLabel,
