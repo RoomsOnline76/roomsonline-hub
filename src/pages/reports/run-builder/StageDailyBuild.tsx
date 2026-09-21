@@ -91,18 +91,33 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
             <p className="text-sm font-medium">Download</p>
             <p className="text-sm text-muted-foreground">
               {reportUrl
-                ? "The day's report, ready to print or save as PDF."
+                ? "The day's report, ready to print or save as PDF, or as a Word document in the same layout."
                 : ready
                   ? "Press Build to refresh the report."
                   : "Read and build the day first."}
             </p>
           </div>
-          <Button disabled={!reportUrl} onClick={() => void openReport()}>
-            <FileText className="mr-2 h-4 w-4" />
-            Daily report (PDF)
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button disabled={!reportUrl} onClick={() => void openReport()}>
+              <FileText className="mr-2 h-4 w-4" />
+              Daily report (PDF)
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!reportUrl || savingWord}
+              onClick={() => void saveWord()}
+            >
+              {savingWord ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileType2 className="mr-2 h-4 w-4" />
+              )}
+              Word
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
 
       {result?.documentTitle && (
         <p className="text-xs text-muted-foreground">Saves as “{result.documentTitle}”.</p>
