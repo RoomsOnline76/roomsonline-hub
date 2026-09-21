@@ -604,13 +604,22 @@ Deno.serve(async (req) => {
     // one-time seed and are never written here.
     const buildNotes: string[] = [...dayNotes];
     const onBooks = monthlyOnBooks(days, settings?.room_count ?? null);
-    const monthUpserts = Object.entries(onBooks).map(([month, monthFigures]) => ({
+    // An export can cover a month without carrying any figures for it. Writing
+    // that as zero would wipe a month that is sold, so a figureless month is
+    // left exactly as it stands.
+    const emptyMonths = Object.entries(onBooks)
+      .filter(([, monthFigures]) => monthFigures.revenue <= 0 && monthFigures.nights <= 0)
+      .map(([month]) => month);
+    const monthUpserts = Object.entries(onBooks)
+      .filter(([, monthFigures]) => monthFigures.revenue > 0 || monthFigures.nights > 0)
+      .map(([month, monthFigures]) => ({
       property_id: run.property_id,
       fiscal_year_label: fiscalYearLabel(month),
       month: `${month}-01`,
       bob: monthFigures.revenue,
       occupancy: monthFigures.occupancy,
       source: "run",
+      updated_at: new Date().toISOString(),
     }));
     if (monthUpserts.length) {
       const { error: monthsError } = await admin
@@ -619,6 +628,11 @@ Deno.serve(async (req) => {
       if (monthsError) return json({ error: monthsError.message }, 500);
       buildNotes.push(
         `${monthUpserts.length} month(s) of revenue on the books updated from the day's exports`,
+      );
+    }
+    if (emptyMonths.length) {
+      buildNotes.push(
+        `${emptyMonths.length} month(s) carried no figures in the day's exports and were left unchanged`,
       );
     }
 
