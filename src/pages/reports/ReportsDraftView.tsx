@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Printer } from "lucide-react";
+import { ArrowLeft, FileType2, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { reportsPath } from "@/lib/config";
 import { extractDocumentTitle, htmlToBlobUrl, printFrameWithTitle } from "@/lib/reportDraftHtml";
+import { saveReportHtmlAsWord } from "@/lib/reports/wordDownload";
 import { usePageSEO } from "@/hooks/usePageSEO";
+
 
 const BUCKET = "revenue-reports";
 
