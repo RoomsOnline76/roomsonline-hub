@@ -603,11 +603,19 @@ Deno.serve(async (req) => {
     const days: ProtelDay[] = [...dayByDate.values()].sort((left, right) =>
       left.date.localeCompare(right.date),
     );
+    const tentativeDays: ProtelDay[] = [...tentativeByDate.values()].sort((left, right) =>
+      left.date.localeCompare(right.date),
+    );
     const dayNotes = supersededDates.length
       ? [
         `${supersededDates.length} day(s) appear in more than one House State export — the print carrying figures was used`,
       ]
       : [];
+    if (tentativeDays.length) {
+      dayNotes.push(
+        `${tentativeDays.length} day(s) read from provisional (optional / tentative) prints — reported apart from revenue on the books`,
+      );
+    }
 
     // Enquiries: the tracker's provisional sheet when the run carries it,
     // otherwise whatever a reservation-style provisional export gave.
@@ -620,14 +628,39 @@ Deno.serve(async (req) => {
     if (!created && pasted.created) created = pasted.created;
     if (!cancelled && pasted.cancelled) cancelled = pasted.cancelled;
 
+    // The tracker's own confirmed and cancellation sheets are the last fallback
+    // for the movement line when the run carries no movement print at all.
+    if (!created && pipeline.confirmed) {
+      created = {
+        count: pipeline.confirmed.count,
+        value: pipeline.confirmed.value,
+        nights: null,
+        period: null,
+        statuses: [],
+      };
+      dayNotes.push("Reservations created read from the tracker's confirmed sheet");
+    }
+    if (!cancelled && pipeline.cancelled) {
+      cancelled = {
+        count: pipeline.cancelled.count,
+        value: pipeline.cancelled.value,
+        nights: null,
+        period: null,
+        statuses: [],
+      };
+      dayNotes.push("Reservations cancelled read from the tracker's cancellations sheet");
+    }
+
     const figures = buildDailyFigures({
       days,
+      provisionalDays: tentativeDays,
       date: asOf,
       villaCount: settings?.room_count ?? null,
       provisionalMonths,
       created,
       cancelled,
     });
+
 
     if (!figures) {
       const message = `No House State row for ${asOf} was found in the uploaded files`;
