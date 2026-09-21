@@ -40,6 +40,21 @@ export interface ProtelTotals {
   total: number;
 }
 
+/**
+ * Which reservation states the print was filtered to. protel prints the filter in
+ * its parameter footer (`State: Confirmed` or `State: Optional, Tentative`), and
+ * Cheetah Plains exports both sets for every month — confirmed business and
+ * provisional (optional/tentative) business must never be added together.
+ */
+export type HouseStateFilter = "confirmed" | "provisional";
+
+/** Reads the printed `State:` filter. Unknown or absent reads as confirmed. */
+export function classifyHouseStateFilter(raw: string): HouseStateFilter {
+  return /optional|tentative|waitlist|option\b|provisional|enquir/i.test(raw)
+    ? "provisional"
+    : "confirmed";
+}
+
 export interface ProtelParseResult {
   days: ProtelDay[];
   totals: ProtelTotals | null;
@@ -47,11 +62,16 @@ export interface ProtelParseResult {
   period: { from: string; to: string } | null;
   /** Rooms in the house implied by free + occupied (median across the month). */
   impliedRooms: number | null;
+  /** Reservation states the print covers, from the parameter footer. */
+  filter: HouseStateFilter;
+  /** The raw printed `State:` text, when present. */
+  filterText: string | null;
   /** Fatal problems — the file must be rejected. */
   errors: string[];
   /** Non-fatal observations worth surfacing on the run. */
   warnings: string[];
 }
+
 
 type Grid = unknown[][];
 
