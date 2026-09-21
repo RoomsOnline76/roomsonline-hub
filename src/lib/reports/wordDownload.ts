@@ -62,6 +62,19 @@ export function wordFileName(documentTitle: string): string {
     .toLowerCase();
   return `${slug || "report"}.doc`;
 }
+/** Saves already-loaded report HTML as a Word document. */
+export function saveReportHtmlAsWord(html: string, documentTitle: string): void {
+  const blob = new Blob([reportHtmlToWord(html, documentTitle)], { type: "application/msword" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = wordFileName(documentTitle);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 
 /**
  * Reads the stored report at `reportUrl` and saves it as a Word document.
