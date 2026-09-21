@@ -16,7 +16,7 @@ import {
   type ReportSourceFile,
 } from "@/hooks/useReportRuns";
 import { supabase } from "@/integrations/supabase/client";
-import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/useReportSnapshot";
+import { useProcessReportRun, useReportSnapshot } from "@/hooks/useReportSnapshot";
 import { useReportDraft } from "@/hooks/useReportDraft";
 import { useReportMedia } from "@/hooks/useReportMedia";
 import { useReportInsights } from "@/hooks/useReportInsights";
@@ -75,7 +75,6 @@ export default function ReportsRunReview() {
     useReportRunMutations();
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
   const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
-  const { generate, isGenerating } = useReportExcel(runId);
   const {
     generate: generateDraft,
     buildPack,
@@ -93,7 +92,6 @@ export default function ReportsRunReview() {
     storedDay,
     emailText: dailyEmailText,
     saveEmailText: onSaveDailyEmailText,
-    downloadSample: onDownloadDailySample,
   } = useDailyDetailedReport(runId, run?.propertyId, run?.asOfDate);
   const dailyFigures = dailyResult?.figures ?? storedDay;
   const stages = useMemo(() => stagesForKind(run?.reportKind), [run?.reportKind]);
@@ -282,7 +280,7 @@ export default function ReportsRunReview() {
   const handleDailyBuild = useCallback(async () => {
     const result = await buildDaily();
     if (result.ok) {
-      toast.success(`Day built (${result.daysInWorkbook ?? 0} day(s) in the workbook)`);
+      toast.success(`Day built (${result.daysStored ?? 0} day(s) stored)`);
     } else {
       toast.error("Could not build the day", { description: result.message });
     }
@@ -479,10 +477,8 @@ export default function ReportsRunReview() {
     onUpload: () => void handleUpload(),
     onProcess: () => void handleProcess(),
     isProcessing,
-    onExcel: generate,
     onDraft: handleDraft,
     onPack: buildPack,
-    isExcelBusy: isGenerating,
     isDraftBusy,
     isPackBusy: isPacking,
     draftUrl,
@@ -500,7 +496,6 @@ export default function ReportsRunReview() {
     dailyProgress,
     dailyEmailText,
     onSaveDailyEmailText,
-    onDownloadDailySample,
   };
 
 

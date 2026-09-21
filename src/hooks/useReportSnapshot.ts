@@ -85,12 +85,6 @@ export interface ProcessResult {
   filesPending?: number;
 }
 
-export interface ExcelResult {
-  ok: boolean;
-  message?: string;
-  url?: string;
-}
-
 const weekdayArray = (value: unknown): number[] => {
   if (!Array.isArray(value) || value.length !== 7) return [0, 0, 0, 0, 0, 0, 0];
   return value.map((entry) => Number(entry) || 0);
@@ -216,27 +210,3 @@ export function useProcessReportRun(runId: string | undefined, sourceType?: stri
   return { process, isProcessing };
 }
 
-/** Generates and downloads the consolidated workbook. */
-export function useReportExcel(runId: string | undefined) {
-  const queryClient = useQueryClient();
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const generate = useCallback(async (): Promise<ExcelResult> => {
-    if (!runId) return { ok: false, message: "No run selected" };
-    setIsGenerating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("revenue-report-excel", {
-        body: { run_id: runId },
-      });
-      if (error) return { ok: false, message: await readError(error) };
-      if (data?.error) return { ok: false, message: String(data.error) };
-      if (!data?.url) return { ok: false, message: "No download link returned" };
-      return { ok: true, url: String(data.url) };
-    } finally {
-      setIsGenerating(false);
-      await queryClient.invalidateQueries({ queryKey: ["reports"] });
-    }
-  }, [runId, queryClient]);
-
-  return { generate, isGenerating };
-}
