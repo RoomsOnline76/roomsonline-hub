@@ -301,10 +301,12 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     warnings.push(`${filename}: no Total row found — daily rows could not be reconciled`);
   }
 
-  // A print with no rooms sold and no revenue anywhere is almost always the
-  // wrong export (wrong hotel or filter), and it would otherwise zero a day
-  // that was really sold. It stays readable, but the run says so.
+  // A confirmed print with no rooms sold and no revenue anywhere is almost always
+  // the wrong export (wrong hotel or filter), and it would otherwise zero a day
+  // that was really sold. It stays readable, but the run says so. A provisional
+  // print is legitimately empty whenever there is no tentative business.
   if (
+    filter === "confirmed" &&
     days.length > 0 &&
     days.every(
       (day) =>
@@ -319,6 +321,7 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
       `${filename}: every day reads no rooms sold and no revenue — check this is the right export`,
     );
   }
+
 
   const months = new Set(days.map((day) => day.date.slice(0, 7)));
   if (months.size > 1) {
