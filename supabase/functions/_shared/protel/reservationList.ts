@@ -99,16 +99,16 @@ export function parseReservationList(grid: Grid, filename: string): ReservationL
     }
 
     if (/^total\b/i.test(cells[0])) {
-      const numbers = cells.slice(1);
-      for (const cell of numbers) {
-        if (/^\d{1,4}$/.test(cell)) printedNights ??= Number(cell);
-        else {
-          const amount = money(cell);
-          if (amount !== null && Math.abs(amount) > 1000) printedValue ??= amount;
-        }
+      // The Total row's plain integer is the persons total, not nights, so only
+      // the money figure is taken from it.
+      for (const cell of cells.slice(1)) {
+        if (/^\d{1,4}$/.test(cell)) continue;
+        const amount = money(cell);
+        if (amount !== null && Math.abs(amount) > 1000) printedValue ??= amount;
       }
       continue;
     }
+
 
     const arrival = toIso(cells[0]);
     const departure = cells.length > 1 ? toIso(cells[1]) : null;
