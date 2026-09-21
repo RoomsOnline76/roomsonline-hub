@@ -106,22 +106,36 @@ export function parseVoidStat(grid: Grid, filename: string): VoidStatResult {
     const arrival = dates[0] ?? null;
     const departure = dates.length > 1 ? dates[dates.length - 1] : null;
 
-    const key = `${reservation}|${arrival ?? ""}|${departure ?? ""}|${total}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    count += 1;
-    value += Math.abs(total);
-    if (arrival && departure) {
+    // A reservation voided under more than one booking date is still one
+    // cancelled reservation; its largest void is the one that stands.
+    const existing = byReservation.get(reservation);
+    const stayNights = (() => {
+      if (!arrival || !departure) return 0;
       const span = (Date.parse(departure) - Date.parse(arrival)) / 86_400_000;
-      if (Number.isFinite(span) && span > 0) nights += Math.round(span);
+      return Number.isFinite(span) && span > 0 ? Math.round(span) : 0;
+    })();
+    if (existing) {
+      repeats += 1;
+      if (Math.abs(total) <= Math.abs(existing.value)) continue;
     }
+    byReservation.set(reservation, { value: total, nights: stayNights });
+  }
+
+  for (const entry of byReservation.values()) {
+    count += 1;
+    value += Math.abs(entry.value);
+    nights += entry.nights;
   }
 
   if (!count) warnings.push(`${filename}: cancellations print carried no accommodation voids`);
   if (skippedOther) {
     warnings.push(
       `${filename}: ${skippedOther} non-accommodation void line(s) (shop, contributions, balancing) were not counted as cancellations`,
+    );
+  }
+  if (repeats) {
+    warnings.push(
+      `${filename}: ${repeats} reservation(s) were voided more than once — counted once, at the largest void`,
     );
   }
 
@@ -137,3 +151,4 @@ export function parseVoidStat(grid: Grid, filename: string): VoidStatResult {
     },
   };
 }
+
