@@ -454,22 +454,27 @@ export function parseHouseStatePdfText(raw: string, filename: string): ProtelPar
     return { days, totals, period, impliedRooms: null, filter, filterText, errors, warnings };
   }
 
+  // The PDF rendering of the Total row does not always carry every column (the
+  // percentage columns are frequently dropped), so its figures cannot be trusted
+  // positionally. A mismatch is reported but never rejects the print — the day
+  // rows themselves are read column by column and are the authority.
   if (totals) {
     const nightsSum = days.reduce((sum, day) => sum + day.roomsOccupied, 0);
     const accommodationSum = round2(days.reduce((sum, day) => sum + day.accommodation, 0));
     if (nightsSum !== totals.roomsOccupied) {
-      errors.push(
-        `${filename}: daily rooms occupied (${nightsSum}) does not match the printed total (${totals.roomsOccupied})`,
+      warnings.push(
+        `${filename}: daily rooms occupied (${nightsSum}) differs from the printed total (${totals.roomsOccupied}) — the printed total row was read as-is`,
       );
     }
     if (Math.abs(accommodationSum - totals.accommodation) > 1) {
-      errors.push(
-        `${filename}: daily accommodation revenue (${accommodationSum.toFixed(2)}) does not match the printed total (${totals.accommodation.toFixed(2)})`,
+      warnings.push(
+        `${filename}: daily accommodation revenue (${accommodationSum.toFixed(2)}) differs from the printed total (${totals.accommodation.toFixed(2)}) — the daily rows were used`,
       );
     }
   } else {
     warnings.push(`${filename}: no Total row found — daily rows could not be reconciled`);
   }
+
 
   const months = new Set(days.map((day) => day.date.slice(0, 7)));
   if (months.size > 1) {

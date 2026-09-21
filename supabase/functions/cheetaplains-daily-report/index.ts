@@ -663,14 +663,22 @@ Deno.serve(async (req) => {
 
 
     if (!figures) {
-      const message = `No House State row for ${asOf} was found in the uploaded files`;
+      // Name the months the uploads did cover: the usual cause is that the
+      // current month's print was left out of the export folder.
+      const covered = [
+        ...new Set([...days, ...tentativeDays].map((day) => day.date.slice(0, 7))),
+      ].sort();
+      const message = covered.length
+        ? `No House State row for ${asOf} was found. The uploaded prints cover ${covered.join(", ")} — the print for ${asOf.slice(0, 7)} is missing.`
+        : `No House State row for ${asOf} was found in the uploaded files`;
       await admin
         .from("report_runs")
         .update({ status: "failed", error_message: message, processing_note: null })
         .eq("id", runId);
-      await logRunEvent(admin, runId, "processing_failed", message, {}, actorId);
+      await logRunEvent(admin, runId, "processing_failed", message, { covered_months: covered }, actorId);
       return json({ error: message, files: results }, 422);
     }
+
 
     // One row per property + day: a rerun replaces the day it covers.
     const { error: upsertError } = await admin.from("report_daily_days").upsert(
