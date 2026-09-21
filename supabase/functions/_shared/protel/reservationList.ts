@@ -77,6 +77,10 @@ export function parseReservationList(grid: Grid, filename: string): ReservationL
   let nights = 0;
   let value = 0;
   let printedValue: number | null = null;
+  let from: string | null = null;
+  let to: string | null = null;
+  const buckets = new Map<string, DailyMovementStatus>();
+
 
 
   for (const row of grid) {
