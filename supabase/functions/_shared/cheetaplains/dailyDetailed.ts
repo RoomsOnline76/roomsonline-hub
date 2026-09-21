@@ -12,7 +12,6 @@
  * source stays `null` and prints as a dash — never as a zero.
  */
 
-import ExcelJS from "npm:exceljs@4.4.0";
 import type { ProtelDay } from "../protel/houseState.ts";
 
 /** One reservation-status bucket on a movement print. */
@@ -297,100 +296,4 @@ export function parsePastedEmail(raw: string | null | undefined): PastedEmail {
     cancelled: line(MOVEMENT_WORDS.cancelled),
     note: text.slice(0, 1200),
   };
-}
-
-/* ── running workbook ──────────────────────────────────────────── */
-
-const MONEY_FORMAT = '#,##0;(#,##0);"-"';
-const PERCENT_FORMAT = '0.0%;-0.0%;"-"';
-
-const COLUMNS: { header: string; width: number; format?: string }[] = [
-  { header: "Date", width: 12 },
-  { header: "Villas occupied", width: 15 },
-  { header: "Villas free", width: 12 },
-  { header: "Arrivals", width: 10 },
-  { header: "Departures", width: 11 },
-  { header: "Occupancy", width: 11, format: PERCENT_FORMAT },
-  { header: "Accommodation (R)", width: 17, format: MONEY_FORMAT },
-  { header: "F&B (R)", width: 12, format: MONEY_FORMAT },
-  { header: "Extras (R)", width: 12, format: MONEY_FORMAT },
-  { header: "Total (R)", width: 14, format: MONEY_FORMAT },
-  { header: "ADR (R)", width: 13, format: MONEY_FORMAT },
-  { header: "MTD revenue (R)", width: 16, format: MONEY_FORMAT },
-  { header: "MTD nights", width: 12 },
-  { header: "MTD occupancy", width: 14, format: PERCENT_FORMAT },
-  { header: "MTD ADR (R)", width: 14, format: MONEY_FORMAT },
-  { header: "Month on books (R)", width: 18, format: MONEY_FORMAT },
-  { header: "Active enquiries (R)", width: 19, format: MONEY_FORMAT },
-  { header: "Bookings created", width: 16 },
-  { header: "Created value (R)", width: 17, format: MONEY_FORMAT },
-  { header: "Bookings cancelled", width: 17 },
-];
-
-const FONT = "Arial";
-
-/**
- * The running Daily Detailed workbook: one row per day the property has ever
- * had a daily run for, newest day last, with the derived columns written as
- * real Excel formulas so the revenue team can keep editing the file.
- */
-export async function buildDailyWorkbook(
-  propertyName: string,
-  rows: DailyFigures[],
-  primary = "1A1A2E",
-): Promise<Uint8Array> {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "RoomsOnline";
-  const sheet = workbook.addWorksheet("Daily Detail", {
-    views: [{ state: "frozen", ySplit: 3 }],
-  });
-
-  sheet.getCell("A1").value = `${propertyName} — Daily Detailed Report`;
-  sheet.getCell("A1").font = { name: FONT, size: 13, bold: true };
-  sheet.getCell("A2").value = "One row per business day. Derived columns are live formulas.";
-  sheet.getCell("A2").font = { name: FONT, size: 9, italic: true, color: { argb: "FF6B7280" } };
-
-  COLUMNS.forEach((column, index) => {
-    const cell = sheet.getRow(3).getCell(index + 1);
-    cell.value = column.header;
-    cell.font = { name: FONT, size: 10, bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${primary}` } };
-    cell.alignment = { vertical: "middle", wrapText: true };
-    sheet.getColumn(index + 1).width = column.width;
-    if (column.format) sheet.getColumn(index + 1).numFmt = column.format;
-  });
-
-  const ordered = [...rows].sort((a, b) => a.date.localeCompare(b.date));
-  ordered.forEach((figures, index) => {
-    const r = 4 + index;
-    const row = sheet.getRow(r);
-    row.getCell(1).value = figures.date;
-    row.getCell(2).value = figures.villasOccupied;
-    row.getCell(3).value = figures.villasFree;
-    row.getCell(4).value = figures.arrivals;
-    row.getCell(5).value = figures.departures;
-    // Occupancy, ADR and the MTD ratios stay editable formulas.
-    row.getCell(6).value = { formula: `IF((B${r}+C${r})=0,"",B${r}/(B${r}+C${r}))` };
-    row.getCell(7).value = figures.accommodation;
-    row.getCell(8).value = figures.foodAndBeverage;
-    row.getCell(9).value = figures.extras;
-    row.getCell(10).value = { formula: `G${r}+H${r}+I${r}` };
-    row.getCell(11).value = { formula: `IF(B${r}=0,"",G${r}/B${r})` };
-    row.getCell(12).value = figures.monthToDate.revenue;
-    row.getCell(13).value = figures.monthToDate.nights;
-    row.getCell(14).value =
-      figures.monthToDate.capacity > 0
-        ? { formula: `IF(${figures.monthToDate.capacity}=0,"",M${r}/${figures.monthToDate.capacity})` }
-        : null;
-    row.getCell(15).value = { formula: `IF(M${r}=0,"",L${r}/M${r})` };
-    row.getCell(16).value = figures.monthOnBooks.revenue;
-    row.getCell(17).value = figures.enquiries ? figures.enquiries.revenue : null;
-    row.getCell(18).value = figures.created ? figures.created.count : null;
-    row.getCell(19).value = figures.created?.value ?? null;
-    row.getCell(20).value = figures.cancelled ? figures.cancelled.count : null;
-    row.font = { name: FONT, size: 10 };
-  });
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  return new Uint8Array(buffer as ArrayBuffer);
 }
