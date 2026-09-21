@@ -235,6 +235,116 @@ Deno.serve(async (req) => {
     );
     const asOf = String(run.as_of_date).slice(0, 10);
 
+    /* ── the Canva asset pack ────────────────────────────────────── */
+
+    // The pack is the built report's own material: the printed page, one CSV per
+    // financial-year table, a vector graph per year and every figure as JSON.
+    if (mode === "pack") {
+      const { data: runRow } = await admin
+        .from("report_runs")
+        .select("draft_report_path")
+        .eq("id", runId)
+        .maybeSingle();
+      const reportPath = (runRow as { draft_report_path?: string | null } | null)
+        ?.draft_report_path ?? null;
+      if (!reportPath) {
+        return json({ error: "Build the day's report first — the pack is built from it" }, 409);
+      }
+
+      const { data: dayRow } = await admin
+        .from("report_daily_days")
+        .select("figures")
+        .eq("property_id", run.property_id)
+        .eq("report_date", asOf)
+        .maybeSingle();
+      const dayFigures = (dayRow?.figures ?? null) as DailyFigures | null;
+
+      const { data: packSettings } = await admin
+        .from("property_report_settings")
+        .select("brand_primary")
+        .eq("property_id", run.property_id)
+        .maybeSingle();
+
+      const { data: packMonths } = await admin
+        .from("report_comparison_months")
+        .select("month, bob, occupancy, budget, stly, stly_occupancy, last_year, last_year_occupancy")
+        .eq("property_id", run.property_id)
+        .order("month", { ascending: true });
+      const packGrids = buildYearGrids((packMonths ?? []) as ComparisonMonthRow[]);
+
+      const download = await admin.storage.from(BUCKET).download(reportPath);
+      const reportHtml = download.data ? await download.data.text() : "";
+
+      const encoder = new TextEncoder();
+      const entries: Record<string, Uint8Array> = {
+        "README.txt": encoder.encode(
+          [
+            `${propertyName} — Daily Detailed Report asset pack`,
+            `Business day ${asOf}`,
+            "",
+            "report.html   the printed report itself — open it to print or to copy from",
+            "charts/       vector SVGs — import straight into Canva, colours stay editable",
+            "tables/       CSV per table — paste into a Canva table or a sheet",
+            "manifest.json every figure used on the report",
+          ].join("\n"),
+        ),
+        "manifest.json": encoder.encode(
+          JSON.stringify({ property: propertyName, date: asOf, figures: dayFigures, years: packGrids }, null, 2),
+        ),
+      };
+      if (reportHtml) entries["report.html"] = encoder.encode(reportHtml);
+      const primary = packSettings?.brand_primary ?? "#1A1A2E";
+      for (const grid of packGrids) {
+        const slug = grid.label.replace(/[^\w]+/g, "-").toLowerCase();
+        entries[`charts/on-the-books-${slug}.svg`] = encoder.encode(
+          dailyYearChartSvg(grid, primary),
+        );
+        entries[`tables/financial-form-${slug}.csv`] = encoder.encode(dailyYearCsv(grid));
+      }
+      if (dayFigures) {
+        entries["tables/the-day.csv"] = encoder.encode(
+          [
+            "Measure,Value",
+            `Villas occupied,${dayFigures.villasOccupied}`,
+            `Villas free,${dayFigures.villasFree}`,
+            `Occupancy %,${dayFigures.occupancy === null ? "" : (dayFigures.occupancy * 100).toFixed(1)}`,
+            `Accommodation,${dayFigures.accommodation}`,
+            `Food and beverage,${dayFigures.foodAndBeverage}`,
+            `Extras,${dayFigures.extras}`,
+            `Total,${dayFigures.total}`,
+            `ADR,${dayFigures.adr ?? ""}`,
+            `Reservations created,${dayFigures.created?.count ?? ""}`,
+            `Reservations cancelled,${dayFigures.cancelled?.count ?? ""}`,
+          ].join("\n"),
+        );
+      }
+
+      const packPath = `${run.property_id}/${runId}/canva-pack-${asOf}.zip`;
+      const zipped = zipSync(entries, { level: 6 });
+      const packUpload = await admin.storage.from(BUCKET).upload(packPath, zipped, {
+        contentType: "application/zip",
+        upsert: true,
+      });
+      if (packUpload.error) return json({ error: packUpload.error.message }, 500);
+      const packSigned = await admin.storage.from(BUCKET).createSignedUrl(packPath, 60 * 30);
+      if (packSigned.error) return json({ error: packSigned.error.message }, 500);
+      await logRunEvent(
+        admin,
+        runId,
+        "draft_generated",
+        "Canva asset pack built for the daily report",
+        { path: packPath, years: packGrids.length },
+        actorId,
+      );
+      return json({
+        success: true,
+        mode: "pack",
+        path: packPath,
+        url: packSigned.data.signedUrl,
+      });
+    }
+
+
     const { data: fileRows, error: filesError } = await admin
       .from("report_source_files")
       .select("id, storage_path, original_filename, detected_mapping")
