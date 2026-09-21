@@ -274,10 +274,13 @@ export function parseHouseState(grid: Grid, filename: string): ProtelParseResult
     });
   }
 
+  const filter = classifyHouseStateFilter(filterText ?? "");
+
   if (!days.length) {
     errors.push(`${filename}: no daily rows could be read from the House State grid`);
-    return { days, totals, period, impliedRooms: null, errors, warnings };
+    return { days, totals, period, impliedRooms: null, filter, filterText, errors, warnings };
   }
+
 
   // Reconciliation against the printed Total row — a mismatch means the grid was
   // misread, so the file is rejected rather than silently under-reporting.
