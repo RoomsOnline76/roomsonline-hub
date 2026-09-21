@@ -206,10 +206,11 @@ export function RunHistoryRow({
               className="h-7 px-2"
               onClick={() => void saveWord()}
               disabled={!run.hasDraft || busy !== null}
-              title={run.hasDraft ? "Download the report for Word" : "No report generated yet"}
+              title={run.hasDraft ? "Download the report as Word (.docx)" : "No report generated yet"}
             >
               {busy === "word" ? spinner : <FileType2 className="h-3.5 w-3.5" />}
-              <span className="sr-only">Download report for Word</span>
+              <span className="sr-only">Download report as Word (.docx)</span>
+
             </Button>
 
             <Button

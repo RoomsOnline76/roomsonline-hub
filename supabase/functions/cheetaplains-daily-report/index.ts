@@ -16,6 +16,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { zipSync } from "npm:fflate@0.8.2";
+
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
@@ -26,6 +28,12 @@ import {
   type HouseStateFilter,
   type ProtelDay,
 } from "../_shared/protel/houseState.ts";
+import {
+  isReservationListGrid,
+  parseReservationList,
+} from "../_shared/protel/reservationList.ts";
+import { isVoidStatGrid, parseVoidStat } from "../_shared/protel/voidStat.ts";
+
 
 import {
   isProvisionalGrid,
@@ -45,7 +53,12 @@ import {
   type DailyFigures,
   type DailyMovement,
 } from "../_shared/cheetaplains/dailyDetailed.ts";
-import { buildDailyReportHtml } from "../_shared/cheetaplains/dailyReportHtml.ts";
+import {
+  buildDailyReportHtml,
+  dailyYearChartSvg,
+  dailyYearCsv,
+} from "../_shared/cheetaplains/dailyReportHtml.ts";
+
 import {
   buildYearGrids,
   fiscalYearLabel,
@@ -157,12 +170,18 @@ const pdfText = async (buffer: ArrayBuffer): Promise<{ flat: string; lines: stri
 const isRunningWorkbook = (name: string): boolean =>
   /daily[\s_-]*detailed[\s_-]*report/i.test(name) && /\.xlsx$/i.test(name);
 
-/** Monthly-only exports are large and hold nothing a single day needs. */
+/**
+ * Every spreadsheet and PDF in the day's folder is given a look. The movement
+ * exports (`creation_…`, `VoidStat_…`) are named nothing like the villa state,
+ * so a name-based list silently dropped the day's created and cancelled
+ * reservations; recognition happens on contents instead.
+ */
 const isDailyFile = (name: string): boolean =>
-  /\.pdf$/i.test(name) ||
+  /\.(pdf|xlsx|xlsm|xls)$/i.test(name) ||
   /housestate/i.test(name) ||
   /provisional/i.test(name) ||
   /(daily|villa|state)/i.test(name);
+
 
 interface FileRow {
   id: string;
@@ -202,8 +221,11 @@ Deno.serve(async (req) => {
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
     const requestedMode = typeof body?.mode === "string" ? body.mode : "parse_batch";
-    const mode: "parse_batch" | "aggregate" | "build" =
-      requestedMode === "build" || requestedMode === "aggregate" ? requestedMode : "parse_batch";
+    const mode: "parse_batch" | "aggregate" | "build" | "pack" =
+      requestedMode === "build" || requestedMode === "aggregate" || requestedMode === "pack"
+        ? requestedMode
+        : "parse_batch";
+
     const reset = body?.reset === true;
     const actorId = userData.user.id;
 
@@ -219,6 +241,116 @@ Deno.serve(async (req) => {
       (run.properties as { name?: string } | null)?.name ?? "Property",
     );
     const asOf = String(run.as_of_date).slice(0, 10);
+
+    /* ── the Canva asset pack ────────────────────────────────────── */
+
+    // The pack is the built report's own material: the printed page, one CSV per
+    // financial-year table, a vector graph per year and every figure as JSON.
+    if (mode === "pack") {
+      const { data: runRow } = await admin
+        .from("report_runs")
+        .select("draft_report_path")
+        .eq("id", runId)
+        .maybeSingle();
+      const reportPath = (runRow as { draft_report_path?: string | null } | null)
+        ?.draft_report_path ?? null;
+      if (!reportPath) {
+        return json({ error: "Build the day's report first — the pack is built from it" }, 409);
+      }
+
+      const { data: dayRow } = await admin
+        .from("report_daily_days")
+        .select("figures")
+        .eq("property_id", run.property_id)
+        .eq("report_date", asOf)
+        .maybeSingle();
+      const dayFigures = (dayRow?.figures ?? null) as DailyFigures | null;
+
+      const { data: packSettings } = await admin
+        .from("property_report_settings")
+        .select("brand_primary")
+        .eq("property_id", run.property_id)
+        .maybeSingle();
+
+      const { data: packMonths } = await admin
+        .from("report_comparison_months")
+        .select("month, bob, occupancy, budget, stly, stly_occupancy, last_year, last_year_occupancy")
+        .eq("property_id", run.property_id)
+        .order("month", { ascending: true });
+      const packGrids = buildYearGrids((packMonths ?? []) as ComparisonMonthRow[]);
+
+      const download = await admin.storage.from(BUCKET).download(reportPath);
+      const reportHtml = download.data ? await download.data.text() : "";
+
+      const encoder = new TextEncoder();
+      const entries: Record<string, Uint8Array> = {
+        "README.txt": encoder.encode(
+          [
+            `${propertyName} — Daily Detailed Report asset pack`,
+            `Business day ${asOf}`,
+            "",
+            "report.html   the printed report itself — open it to print or to copy from",
+            "charts/       vector SVGs — import straight into Canva, colours stay editable",
+            "tables/       CSV per table — paste into a Canva table or a sheet",
+            "manifest.json every figure used on the report",
+          ].join("\n"),
+        ),
+        "manifest.json": encoder.encode(
+          JSON.stringify({ property: propertyName, date: asOf, figures: dayFigures, years: packGrids }, null, 2),
+        ),
+      };
+      if (reportHtml) entries["report.html"] = encoder.encode(reportHtml);
+      const primary = packSettings?.brand_primary ?? "#1A1A2E";
+      for (const grid of packGrids) {
+        const slug = grid.label.replace(/[^\w]+/g, "-").toLowerCase();
+        entries[`charts/on-the-books-${slug}.svg`] = encoder.encode(
+          dailyYearChartSvg(grid, primary),
+        );
+        entries[`tables/financial-form-${slug}.csv`] = encoder.encode(dailyYearCsv(grid));
+      }
+      if (dayFigures) {
+        entries["tables/the-day.csv"] = encoder.encode(
+          [
+            "Measure,Value",
+            `Villas occupied,${dayFigures.villasOccupied}`,
+            `Villas free,${dayFigures.villasFree}`,
+            `Occupancy %,${dayFigures.occupancy === null ? "" : (dayFigures.occupancy * 100).toFixed(1)}`,
+            `Accommodation,${dayFigures.accommodation}`,
+            `Food and beverage,${dayFigures.foodAndBeverage}`,
+            `Extras,${dayFigures.extras}`,
+            `Total,${dayFigures.total}`,
+            `ADR,${dayFigures.adr ?? ""}`,
+            `Reservations created,${dayFigures.created?.count ?? ""}`,
+            `Reservations cancelled,${dayFigures.cancelled?.count ?? ""}`,
+          ].join("\n"),
+        );
+      }
+
+      const packPath = `${run.property_id}/${runId}/canva-pack-${asOf}.zip`;
+      const zipped = zipSync(entries, { level: 6 });
+      const packUpload = await admin.storage.from(BUCKET).upload(packPath, zipped, {
+        contentType: "application/zip",
+        upsert: true,
+      });
+      if (packUpload.error) return json({ error: packUpload.error.message }, 500);
+      const packSigned = await admin.storage.from(BUCKET).createSignedUrl(packPath, 60 * 30);
+      if (packSigned.error) return json({ error: packSigned.error.message }, 500);
+      await logRunEvent(
+        admin,
+        runId,
+        "draft_generated",
+        "Canva asset pack built for the daily report",
+        { path: packPath, years: packGrids.length },
+        actorId,
+      );
+      return json({
+        success: true,
+        mode: "pack",
+        path: packPath,
+        url: packSigned.data.signedUrl,
+      });
+    }
+
 
     const { data: fileRows, error: filesError } = await admin
       .from("report_source_files")
@@ -414,9 +546,15 @@ Deno.serve(async (req) => {
                   const probe = toGrid(workbook, name, PROBE_ROWS);
                   const isHouseState = isHouseStateGrid(probe);
                   const isPipeline = !isHouseState && isPipelineGrid(probe);
+                  const isCreated =
+                    !isHouseState && !isPipeline && isReservationListGrid(probe);
+                  const isVoided =
+                    !isHouseState && !isPipeline && !isCreated && isVoidStatGrid(probe);
                   const isProvisional =
-                    !isHouseState && !isPipeline && isProvisionalGrid(probe);
+                    !isHouseState && !isPipeline && !isCreated && !isVoided &&
+                    isProvisionalGrid(probe);
                   probe.length = 0;
+
                   if (isPipeline) {
                     // The tracker keeps enquiries, confirmations and losses on
                     // separate sheets — all three are read in one pass.
@@ -447,8 +585,31 @@ Deno.serve(async (req) => {
                     };
                     break;
                   }
-                  if (!isHouseState && !isProvisional) continue;
+                  if (!isHouseState && !isProvisional && !isCreated && !isVoided) continue;
                   const grid = toGrid(workbook, name);
+                  if (isCreated) {
+                    // The created print carries its own status split, so
+                    // confirmed and provisional business stay apart.
+                    const list = parseReservationList(grid, filename);
+                    entry = {
+                      payload: { kind: "created", movement: list.movement },
+                      notes: list.warnings,
+                      ok: list.rowsRead > 0,
+                      rows: list.rowsRead,
+                    };
+                    break;
+                  }
+                  if (isVoided) {
+                    const voided = parseVoidStat(grid, filename);
+                    entry = {
+                      payload: { kind: "cancelled", movement: voided.movement },
+                      notes: voided.warnings,
+                      ok: voided.rowsRead > 0,
+                      rows: voided.rowsRead,
+                    };
+                    break;
+                  }
+
                   if (isHouseState) {
                     const houseState = parseHouseState(grid, filename);
                     if (houseState.errors.length) {

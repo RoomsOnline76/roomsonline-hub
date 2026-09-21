@@ -141,9 +141,13 @@ interface ChartSeries {
  * against budget and against the same time last year — as an inline SVG so the
  * page prints without fetching anything.
  */
-const yearChart = (grid: DailyYearGrid, primary: string): string => {
+const yearChartSvg = (
+  grid: DailyYearGrid,
+  primary: string,
+): { svg: string; legend: string } => {
   const months = grid.rows.filter((entry) => entry.kind === "month");
-  if (months.length === 0) return "";
+  if (months.length === 0) return { svg: "", legend: "" };
+
   const series: ChartSeries[] = [
     { name: "On the books", colour: primary, values: months.map((entry) => entry.bob) },
     ...(hasBudget(grid)
@@ -206,13 +210,62 @@ const yearChart = (grid: DailyYearGrid, primary: string): string => {
     )
     .join("");
 
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Revenue on the books against budget and last year for ${esc(grid.label)}">
+    <style>text.axis { font-size: 9px; fill: #6B7280; font-family: Arial, sans-serif; }</style>
+    ${ticks}${lines}${labels}
+  </svg>`;
+  return { svg, legend };
+};
+
+/** One financial year's graph, standalone, for the Canva asset pack. */
+export function dailyYearChartSvg(grid: DailyYearGrid, primary: string): string {
+  return yearChartSvg(grid, primary).svg;
+}
+
+/** The same graph inside the printed page, with its legend above it. */
+const yearChart = (grid: DailyYearGrid, primary: string): string => {
+  const { svg, legend } = yearChartSvg(grid, primary);
+  if (!svg) return "";
   return `<div class="chart">
   <div class="chart-head"><strong>${esc(grid.label)}</strong>${legend}</div>
-  <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Revenue on the books against budget and last year for ${esc(grid.label)}">
-    ${ticks}${lines}${labels}
-  </svg>
+  ${svg}
 </div>`;
 };
+
+/** One financial year's month rows as CSV, for the Canva asset pack. */
+export function dailyYearCsv(grid: DailyYearGrid): string {
+  const head = [
+    "Month",
+    "On the books",
+    "Occupancy %",
+    "Budget",
+    "Vs budget",
+    "STLY",
+    "Occupancy STLY %",
+    "Last year",
+    "Occupancy last year %",
+  ];
+  const cell = (value: number | null): string =>
+    value === null || !Number.isFinite(value) ? "" : String(Math.round(value * 100) / 100);
+  const percent = (value: number | null): string =>
+    value === null || !Number.isFinite(value) ? "" : (value * 100).toFixed(1);
+  const rows = grid.rows.map((entry) =>
+    [
+      `"${entry.label.replace(/"/g, '""')}"`,
+      cell(entry.bob),
+      percent(entry.occupancy),
+      cell(entry.budget),
+      cell(variance(entry)),
+      cell(entry.stly),
+      percent(entry.stlyOccupancy),
+      cell(entry.lastYear),
+      percent(entry.lastYearOccupancy),
+    ].join(","),
+  );
+  return [head.join(","), ...rows].join("\n");
+}
+
 
 export interface DailyReportResult {
   html: string;
@@ -222,13 +275,16 @@ export interface DailyReportResult {
 /**
  * The status split under a movement line. Confirmed and provisional business is
  * never added together — most provisionals never confirm — so the print keeps
- * one indented line per reservation status the export carried. A print with a
- * single status (every row on the cancelled print reads `Cancelled`) adds
- * nothing and is left off.
+ * one indented line per reservation status the export carried, even when the
+ * whole print reads one status: a day of four provisional reservations must say
+ * so. A cancelled print, whose every row reads `Cancelled`, carries no split.
  */
 const statusRows = (movement: DailyMovement | null): string => {
-  const statuses = movement?.statuses ?? [];
-  if (statuses.length < 2) return "";
+  const statuses = (movement?.statuses ?? []).filter(
+    (status) => !/^cancell?ed$/i.test(status.label),
+  );
+  if (!statuses.length) return "";
+
   return statuses
     .map((status) =>
       row([

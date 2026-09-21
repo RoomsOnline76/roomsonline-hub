@@ -95,11 +95,13 @@ export default function ReportsDraftView() {
     printFrameWithTitle(frameRef.current, documentTitle);
   }, [documentTitle]);
 
-  // The same page Word-side: identical layout, tables and graphs as the PDF.
+  // The same page Word-side: identical layout, tables and graphs as the PDF,
+  // packed as a real .docx so Word opens it without a notice and stays editable.
   const handleWord = useCallback(() => {
     if (!html) return;
-    saveReportHtmlAsWord(html, documentTitle ?? "Report");
+    void saveReportHtmlAsWord(html, documentTitle ?? "Report");
   }, [html, documentTitle]);
+
 
 
   return (
@@ -121,7 +123,7 @@ export default function ReportsDraftView() {
           </Button>
           <Button size="sm" variant="outline" onClick={handleWord} disabled={!html}>
             <FileType2 className="h-4 w-4 mr-2" />
-            Save as Word
+            Word (.docx)
           </Button>
         </div>
 

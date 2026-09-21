@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FileType2, Loader2, Play, Trash2 } from "lucide-react";
+import { FileArchive, FileText, FileType2, Loader2, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -42,6 +42,29 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
   const reportUrl = useMemo(() => result?.reportUrl ?? storedReportUrl, [result, storedReportUrl]);
 
   const [savingWord, setSavingWord] = useState(false);
+  const [savingPack, setSavingPack] = useState(false);
+
+  // The pack is built from the stored report, so it always matches the PDF.
+  const savePack = async () => {
+    setSavingPack(true);
+    try {
+      const outcome = await ctx.onDailyPack();
+      if (!outcome.ok || !outcome.url) {
+        toast.error(outcome.message ?? "Could not build the Canva pack");
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = outcome.url;
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Canva pack ready");
+    } finally {
+      setSavingPack(false);
+    }
+  };
+
 
   const openReport = async () => {
     if (!reportUrl) {
@@ -114,7 +137,7 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
             <p className="text-sm font-medium">Download</p>
             <p className="text-sm text-muted-foreground">
               {reportUrl
-                ? "The day's report, ready to print or save as PDF, or as a Word document in the same layout."
+                ? "The day's report, ready to print or save as PDF, as an editable Word document in the same layout, or as a Canva pack."
                 : ready
                   ? "Press Build to refresh the report."
                   : "Read and build the day first."}
@@ -135,9 +158,22 @@ export function StageDailyBuild({ ctx }: { ctx: RunBuilderContext }) {
               ) : (
                 <FileType2 className="mr-2 h-4 w-4" />
               )}
-              Word
+              Word (.docx)
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!reportUrl || savingPack}
+              onClick={() => void savePack()}
+            >
+              {savingPack ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileArchive className="mr-2 h-4 w-4" />
+              )}
+              Canva pack
             </Button>
           </div>
+
         </CardContent>
       </Card>
 
