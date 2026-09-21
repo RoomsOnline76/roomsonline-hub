@@ -65,10 +65,18 @@ export interface DailyFigures {
   monthOnBooks: DailyPeriodFigures;
   /** Provisional (unconfirmed) business for the report month. */
   enquiries: { revenue: number; nights: number } | null;
+  /**
+   * The day as it reads on the provisional (Optional / Tentative) prints. Never
+   * part of revenue on the books — it prints as its own line.
+   */
+  provisionalDay: { villasOccupied: number; accommodation: number; total: number } | null;
+  /** The whole month on the provisional prints. */
+  provisionalMonth: DailyPeriodFigures | null;
   created: DailyMovement | null;
   cancelled: DailyMovement | null;
   villaCount: number | null;
 }
+
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
