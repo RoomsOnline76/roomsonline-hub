@@ -69,10 +69,11 @@ export default function ReportsDraftView() {
 
       try {
         const response = await fetch(signed.data.signedUrl);
-        const html = await response.text();
+        const loaded = await response.text();
         if (cancelled) return;
-        objectUrl = htmlToBlobUrl(html);
-        setDocumentTitle(extractDocumentTitle(html));
+        objectUrl = htmlToBlobUrl(loaded);
+        setDocumentTitle(extractDocumentTitle(loaded));
+        setHtml(loaded);
         setUrl(objectUrl);
       } catch {
         if (!cancelled) setError("Could not load the report contents.");
@@ -89,6 +90,13 @@ export default function ReportsDraftView() {
   const handlePrint = useCallback(() => {
     printFrameWithTitle(frameRef.current, documentTitle);
   }, [documentTitle]);
+
+  // The same page Word-side: identical layout, tables and graphs as the PDF.
+  const handleWord = useCallback(() => {
+    if (!html) return;
+    saveReportHtmlAsWord(html, documentTitle ?? "Report");
+  }, [html, documentTitle]);
+
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] gap-3">
