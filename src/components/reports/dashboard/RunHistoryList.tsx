@@ -88,32 +88,56 @@ export function RunHistoryRow({
   propertyName: string;
   onQuickView: (run: PortfolioRun) => void;
 }) {
-  const [busy, setBusy] = useState<"pack" | "report" | null>(null);
+  const [busy, setBusy] = useState<"pack" | "report" | "word" | null>(null);
   const products = runProducts(run);
   const isDaily = run.reportKind === "daily_detailed";
+
+  const signedReport = useCallback(async (): Promise<string | null> => {
+    if (!run.draftPath) {
+      report({ ok: false, message: "No report has been generated for this run yet." });
+      return null;
+    }
+    const { data } = await supabase.storage
+      .from("revenue-reports")
+      .createSignedUrl(run.draftPath, 60 * 30);
+    if (!data?.signedUrl) {
+      report({ ok: false, message: "Could not open the report file." });
+      return null;
+    }
+    return data.signedUrl;
+  }, [run.draftPath]);
 
   const saveReport = useCallback(async () => {
     setBusy("report");
     try {
-      if (!run.draftPath) {
-        report({ ok: false, message: "No report has been generated for this run yet." });
-        return;
-      }
-      const { data } = await supabase.storage
-        .from("revenue-reports")
-        .createSignedUrl(run.draftPath, 60 * 30);
-      if (!data?.signedUrl) {
-        report({ ok: false, message: "Could not open the report file." });
-        return;
-      }
+      const url = await signedReport();
+      if (!url) return;
       await downloadFile(
-        data.signedUrl,
+        url,
         `${slug(propertyName)}-${isDaily ? "daily-report" : "report"}-${run.asOfDate}.html`,
       );
     } finally {
       setBusy(null);
     }
-  }, [run.draftPath, run.asOfDate, propertyName, isDaily]);
+  }, [signedReport, run.asOfDate, propertyName, isDaily]);
+
+  // Word is the same stored report, wrapped so Word opens it in that layout.
+  const saveWord = useCallback(async () => {
+    setBusy("word");
+    try {
+      const url = await signedReport();
+      if (!url) return;
+      report(
+        await downloadReportAsWord(
+          url,
+          `${propertyName} - ${isDaily ? "Daily Detailed Report" : "Report"} - ${formatDay(run.asOfDate)}`,
+        ),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [signedReport, run.asOfDate, propertyName, isDaily]);
+
 
   const savePack = useCallback(async () => {
     setBusy("pack");
