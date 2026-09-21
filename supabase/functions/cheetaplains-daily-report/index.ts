@@ -26,6 +26,12 @@ import {
   type HouseStateFilter,
   type ProtelDay,
 } from "../_shared/protel/houseState.ts";
+import {
+  isReservationListGrid,
+  parseReservationList,
+} from "../_shared/protel/reservationList.ts";
+import { isVoidStatGrid, parseVoidStat } from "../_shared/protel/voidStat.ts";
+
 
 import {
   isProvisionalGrid,
