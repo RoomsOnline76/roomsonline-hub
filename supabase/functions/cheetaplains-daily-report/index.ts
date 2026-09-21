@@ -315,18 +315,47 @@ Deno.serve(async (req) => {
 
             if (isPdf) {
               try {
-                const movement = parseMovementPdf(await pdfText(buffer));
-                if (movement.kind === "unknown") {
-                  notes.push(`${filename}: not a created/cancelled reservations print — skipped`);
+                const text = await pdfText(buffer);
+                // The team prints Hotel Status as a PDF as often as a spreadsheet,
+                // so the same grid is read from either.
+                if (isHouseStatePdfText(text.lines)) {
+                  const parsed = parseHouseStatePdfText(text.lines, filename);
+                  entry = parsed.days.length
+                    ? {
+                      payload: {
+                        kind: "house_state",
+                        days: parsed.days,
+                        filter: parsed.filter,
+                      },
+                      notes: [...notes, ...parsed.errors, ...parsed.warnings],
+                      ok: parsed.errors.length === 0,
+                      rows: parsed.days.length,
+                    }
+                    : {
+                      payload: { kind: "skipped" },
+                      notes: [
+                        ...notes,
+                        ...parsed.errors,
+                        `${filename}: Hotel Status print carried no day rows`,
+                      ],
+                      ok: false,
+                      rows: 0,
+                    };
                 } else {
-                  entry = {
-                    payload: { kind: movement.kind, movement: movement.movement },
-                    notes,
-                    ok: true,
-                    rows: movement.movement.count,
-                  };
+                  const movement = parseMovementPdf(text.flat);
+                  if (movement.kind === "unknown") {
+                    notes.push(`${filename}: not a created/cancelled reservations print — skipped`);
+                  } else {
+                    entry = {
+                      payload: { kind: movement.kind, movement: movement.movement },
+                      notes,
+                      ok: true,
+                      rows: movement.movement.count,
+                    };
+                  }
                 }
               } catch (error) {
+
                 entry = {
                   payload: { kind: "skipped" },
                   notes: [
