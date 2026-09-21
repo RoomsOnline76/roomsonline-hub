@@ -157,12 +157,18 @@ const pdfText = async (buffer: ArrayBuffer): Promise<{ flat: string; lines: stri
 const isRunningWorkbook = (name: string): boolean =>
   /daily[\s_-]*detailed[\s_-]*report/i.test(name) && /\.xlsx$/i.test(name);
 
-/** Monthly-only exports are large and hold nothing a single day needs. */
+/**
+ * Every spreadsheet and PDF in the day's folder is given a look. The movement
+ * exports (`creation_…`, `VoidStat_…`) are named nothing like the villa state,
+ * so a name-based list silently dropped the day's created and cancelled
+ * reservations; recognition happens on contents instead.
+ */
 const isDailyFile = (name: string): boolean =>
-  /\.pdf$/i.test(name) ||
+  /\.(pdf|xlsx|xlsm|xls)$/i.test(name) ||
   /housestate/i.test(name) ||
   /provisional/i.test(name) ||
   /(daily|villa|state)/i.test(name);
+
 
 interface FileRow {
   id: string;
