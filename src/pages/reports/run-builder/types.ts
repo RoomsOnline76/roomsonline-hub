@@ -75,6 +75,9 @@ export interface RunBuilderContext {
   dailyFigures: DailyFigures | null;
   /** Reads the day, stores it and refreshes the workbook and one-page report. */
   onDailyBuild: () => void;
+  /** Builds the day's Canva asset pack from the report just built. */
+  onDailyPack: () => Promise<{ ok: boolean; message?: string; url?: string }>;
+
   isDailyBusy: boolean;
   dailyResult: DailyBuildResult | null;
   /** How far the stepped read of the day's files has got. */

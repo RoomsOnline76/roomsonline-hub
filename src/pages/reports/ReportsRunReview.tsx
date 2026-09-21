@@ -86,6 +86,8 @@ export default function ReportsRunReview() {
   const isDaily = run?.reportKind === "daily_detailed";
   const {
     build: buildDaily,
+    buildPack: buildDailyPack,
+
     isBuilding: isDailyBusy,
     result: dailyResult,
     progress: dailyProgress,
@@ -491,6 +493,8 @@ export default function ReportsRunReview() {
     ownerSlidesOffered,
     dailyFigures,
     onDailyBuild: () => void handleDailyBuild(),
+    onDailyPack: buildDailyPack,
+
     isDailyBusy,
     dailyResult,
     dailyProgress,
