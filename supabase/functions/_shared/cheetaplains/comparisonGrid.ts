@@ -28,6 +28,10 @@ export interface DailyGridRow {
   stlyOccupancy: number | null;
   lastYear: number | null;
   lastYearOccupancy: number | null;
+  previousBob: number | null;
+  previousOccupancy: number | null;
+  pickup: number | null;
+  varianceToStly: number | null;
 }
 
 export interface DailyYearGrid {
@@ -49,6 +53,13 @@ export interface ComparisonMonthRow {
   last_year_occupancy: number | null;
 }
 
+export type BobSnapshot = Record<string, { bob: number; occupancy: number | null }>;
+
+export interface GridComparisonOptions {
+  current?: BobSnapshot | null;
+  previous?: BobSnapshot | null;
+}
+
 /** `2026-04` → `2026/2027` (fiscal year starts in March). */
 export function fiscalYearLabel(month: string): string {
   const year = Number(month.slice(0, 4));
@@ -68,6 +79,8 @@ const NUMERIC_KEYS = [
   "stlyOccupancy",
   "lastYear",
   "lastYearOccupancy",
+  "previousBob",
+  "previousOccupancy",
 ] as const;
 
 const emptyRow = (label: string, kind: DailyGridRow["kind"]): DailyGridRow => ({
@@ -80,6 +93,10 @@ const emptyRow = (label: string, kind: DailyGridRow["kind"]): DailyGridRow => ({
   stlyOccupancy: null,
   lastYear: null,
   lastYearOccupancy: null,
+  previousBob: null,
+  previousOccupancy: null,
+  pickup: null,
+  varianceToStly: null,
 });
 
 const toNumber = (value: unknown): number | null => {
@@ -101,11 +118,16 @@ const summarise = (
     const total = values.reduce((sum, value) => sum + value, 0);
     row[key] = /occupancy/i.test(key) ? total / values.length : total;
   }
+  row.pickup = row.bob === null || row.previousBob === null ? null : row.bob - row.previousBob;
+  row.varianceToStly = row.bob === null || row.stly === null ? null : row.bob - row.stly;
   return row;
 };
 
 /** Every financial-year block the stored months cover, newest last. */
-export function buildYearGrids(rows: ComparisonMonthRow[]): DailyYearGrid[] {
+export function buildYearGrids(
+  rows: ComparisonMonthRow[],
+  options: GridComparisonOptions = {},
+): DailyYearGrid[] {
   const byYear = new Map<string, Map<string, ComparisonMonthRow>>();
   for (const row of rows) {
     const month = String(row.month).slice(0, 7);
@@ -127,13 +149,19 @@ export function buildYearGrids(rows: ComparisonMonthRow[]): DailyYearGrid[] {
       const stored = bucket.get(key);
       const row = emptyRow(monthName(key), "month");
       if (stored) {
-        row.bob = toNumber(stored.bob);
-        row.occupancy = toNumber(stored.occupancy);
+        const current = options.current?.[key];
+        const previous = options.previous?.[key];
+        row.bob = current ? toNumber(current.bob) : toNumber(stored.bob);
+        row.occupancy = current ? toNumber(current.occupancy) : toNumber(stored.occupancy);
         row.budget = toNumber(stored.budget);
         row.stly = toNumber(stored.stly);
         row.stlyOccupancy = toNumber(stored.stly_occupancy);
         row.lastYear = toNumber(stored.last_year);
         row.lastYearOccupancy = toNumber(stored.last_year_occupancy);
+        row.previousBob = previous ? toNumber(previous.bob) : null;
+        row.previousOccupancy = previous ? toNumber(previous.occupancy) : null;
+        row.pickup = row.bob === null || row.previousBob === null ? null : row.bob - row.previousBob;
+        row.varianceToStly = row.bob === null || row.stly === null ? null : row.bob - row.stly;
       }
       monthRows.push(row);
     }

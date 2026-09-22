@@ -277,7 +277,22 @@ Deno.serve(async (req) => {
         .select("month, bob, occupancy, budget, stly, stly_occupancy, last_year, last_year_occupancy")
         .eq("property_id", run.property_id)
         .order("month", { ascending: true });
-      const packGrids = buildYearGrids((packMonths ?? []) as ComparisonMonthRow[]);
+      const { data: priorPackDays } = await admin
+        .from("report_daily_days")
+        .select("report_date, figures")
+        .eq("property_id", run.property_id)
+        .lt("report_date", asOf)
+        .order("report_date", { ascending: false })
+        .limit(30);
+      const priorPackDay = (priorPackDays ?? []).find((entry) => {
+        const candidate = entry.figures as unknown as DailyFigures | null;
+        return candidate?.comparisonSnapshot && Object.keys(candidate.comparisonSnapshot).length > 0;
+      });
+      const priorPackFigures = (priorPackDay?.figures ?? null) as DailyFigures | null;
+      const packGrids = buildYearGrids((packMonths ?? []) as ComparisonMonthRow[], {
+        current: dayFigures?.comparisonSnapshot ?? null,
+        previous: priorPackFigures?.comparisonSnapshot ?? null,
+      });
 
       const download = await admin.storage.from(BUCKET).download(reportPath);
       const reportHtml = download.data ? await download.data.text() : "";
@@ -910,13 +925,40 @@ Deno.serve(async (req) => {
       );
     }
 
+    const previousStoredDay = (storedDays ?? [])
+      .filter((row) => {
+        const candidate = row.figures as unknown as DailyFigures | null;
+        return String(row.report_date) < asOf && candidate?.comparisonSnapshot &&
+          Object.keys(candidate.comparisonSnapshot).length > 0;
+      })
+      .at(-1);
+    const previousFigures = (previousStoredDay?.figures ?? null) as DailyFigures | null;
+
     const { data: comparisonRows, error: comparisonError } = await admin
       .from("report_comparison_months")
       .select("month, bob, occupancy, budget, stly, stly_occupancy, last_year, last_year_occupancy")
       .eq("property_id", run.property_id)
       .order("month", { ascending: true });
     if (comparisonError) return json({ error: comparisonError.message }, 500);
-    const yearGrids = buildYearGrids((comparisonRows ?? []) as ComparisonMonthRow[]);
+    const comparisonSnapshot = Object.fromEntries(
+      ((comparisonRows ?? []) as ComparisonMonthRow[])
+        .filter((entry) => entry.bob !== null)
+        .map((entry) => [
+          String(entry.month).slice(0, 7),
+          { bob: Number(entry.bob), occupancy: entry.occupancy === null ? null : Number(entry.occupancy) },
+        ]),
+    );
+    figures.comparisonSnapshot = comparisonSnapshot;
+    const { error: snapshotError } = await admin
+      .from("report_daily_days")
+      .update({ figures: figures as unknown as Record<string, unknown> })
+      .eq("property_id", run.property_id)
+      .eq("report_date", asOf);
+    if (snapshotError) return json({ error: snapshotError.message }, 500);
+    const yearGrids = buildYearGrids((comparisonRows ?? []) as ComparisonMonthRow[], {
+      current: comparisonSnapshot,
+      previous: previousFigures?.comparisonSnapshot ?? null,
+    });
     if (!yearGrids.length) {
       buildNotes.push(
         "No comparison figures are stored yet — import the consolidated workbook once in reporting settings",
@@ -933,6 +975,7 @@ Deno.serve(async (req) => {
       },
       emailNotes: pasted.note,
       yearGrids,
+      previousReportDate: previousFigures?.comparisonSnapshot ? previousFigures.date : null,
     });
     const htmlPath = `${run.property_id}/${runId}/daily-detailed-${asOf}.html`;
     const htmlUpload = await admin.storage

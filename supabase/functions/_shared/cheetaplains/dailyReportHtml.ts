@@ -31,6 +31,8 @@ export interface DailyReportOptions {
    * which case the report stays a single page.
    */
   yearGrids?: DailyYearGrid[];
+  /** Latest earlier successful daily report used for the BOB pickup comparison. */
+  previousReportDate?: string | null;
 }
 
 
@@ -84,8 +86,14 @@ const shortRand = (value: number | null): string => {
   return `R${Math.round(value)}`;
 };
 
-const variance = (row: DailyGridRow): number | null =>
+const varianceToBudget = (row: DailyGridRow): number | null =>
   row.bob === null || row.budget === null ? null : row.bob - row.budget;
+
+const varianceCell = (value: number | null): string => {
+  if (value === null || !Number.isFinite(value)) return "—";
+  const cls = value > 0 ? "positive" : value < 0 ? "negative" : "neutral";
+  return `<span class="${cls}">${shortRand(value)}</span>`;
+};
 
 /**
  * A closed financial year is kept only as a comparison, and most of those years
@@ -96,20 +104,24 @@ const hasBudget = (grid: DailyYearGrid): boolean =>
   grid.rows.some((entry) => entry.budget !== null && entry.budget !== 0);
 
 /** One financial year's month rows, quarters and total, as the workbook has it. */
-const yearTable = (grid: DailyYearGrid): string => {
+const yearTable = (grid: DailyYearGrid, previousLabel: string): string => {
   const budget = hasBudget(grid);
   const body = grid.rows
     .map((entry) => {
       const cls = entry.kind === "month" ? "" : ` class="sum"`;
       const cells = [
         esc(entry.label),
-        shortRand(entry.bob),
+        rand(entry.bob),
         pct(entry.occupancy),
-        ...(budget ? [shortRand(entry.budget), shortRand(variance(entry))] : []),
-        shortRand(entry.stly),
+        rand(entry.previousBob),
+        pct(entry.previousOccupancy),
+        varianceCell(entry.pickup),
+        ...(budget ? [rand(entry.budget), varianceCell(varianceToBudget(entry))] : []),
+        rand(entry.stly),
         pct(entry.stlyOccupancy),
-        shortRand(entry.lastYear),
+        rand(entry.lastYear),
         pct(entry.lastYearOccupancy),
+        varianceCell(entry.varianceToStly),
       ];
       return `<tr${cls}>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
     })
@@ -118,11 +130,15 @@ const yearTable = (grid: DailyYearGrid): string => {
     "Month",
     "On the books",
     "Occ %",
+    previousLabel,
+    "Occ % PD",
+    "Pickup CD vs PD",
     ...(budget ? ["Budget", "Vs budget"] : []),
-    "STLY",
+    "STLY BOB",
     "Occ STLY",
-    "Last year",
+    "LY BOB",
     "Occ LY",
+    "BOB variance to STLY",
   ];
   return `<table class="grid dense">
   ${row(head, true)}
@@ -239,12 +255,16 @@ export function dailyYearCsv(grid: DailyYearGrid): string {
     "Month",
     "On the books",
     "Occupancy %",
+    "BOB previous day",
+    "Occupancy previous day %",
+    "Pickup current vs previous day",
     "Budget",
     "Vs budget",
     "STLY",
     "Occupancy STLY %",
     "Last year",
     "Occupancy last year %",
+    "BOB variance to STLY",
   ];
   const cell = (value: number | null): string =>
     value === null || !Number.isFinite(value) ? "" : String(Math.round(value * 100) / 100);
@@ -255,12 +275,16 @@ export function dailyYearCsv(grid: DailyYearGrid): string {
       `"${entry.label.replace(/"/g, '""')}"`,
       cell(entry.bob),
       percent(entry.occupancy),
+      cell(entry.previousBob),
+      percent(entry.previousOccupancy),
+      cell(entry.pickup),
       cell(entry.budget),
-      cell(variance(entry)),
+      cell(varianceToBudget(entry)),
       cell(entry.stly),
       percent(entry.stlyOccupancy),
       cell(entry.lastYear),
       percent(entry.lastYearOccupancy),
+      cell(entry.varianceToStly),
     ].join(","),
   );
   return [head.join(","), ...rows].join("\n");
@@ -374,6 +398,9 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   // it: one table per financial year, then all three graphs together. They only
   // appear when the run has the running workbook to read them from.
   const grids = (options.yearGrids ?? []).filter((grid) => grid.rows.length > 0);
+  const previousLabel = options.previousReportDate
+    ? `BOB previous ${longDate(options.previousReportDate)}`
+    : "BOB previous day";
   const footer = `<div class="footer">
     <span>${esc(documentTitle)}</span>
     ${branding.logoUrl ? `<img src="${esc(branding.logoUrl)}" alt="${esc(propertyName)}" />` : ""}
@@ -388,7 +415,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
       (grid) => `<section class="page">
   ${heading(`Financial form ${grid.label}`)}
   <h2>Revenue on the books, budget and last year</h2>
-  ${yearTable(grid)}
+  ${yearTable(grid, previousLabel)}
   <div class="note">Read from the day's sheet in the Daily Detailed Report workbook. Quarter and total occupancy are averages of their months, as the workbook calculates them.</div>
   ${footer}
 </section>`,
@@ -451,8 +478,13 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   table.grid th:not(:first-child), table.grid td:not(:first-child) { text-align: right; }
   table.grid td { padding: 2.2mm 3mm; border-bottom: 1px solid var(--line); }
   table.grid.dense { font-size: 8pt; }
-  table.grid.dense td { padding: 1.4mm 2mm; }
+  table.grid.dense { table-layout: fixed; font-size: 5.2pt; }
+  table.grid.dense th, table.grid.dense td { padding: 1.2mm 1mm; overflow-wrap: anywhere; }
+  table.grid.dense td { white-space: nowrap; }
   table.grid.dense tr.sum td { font-weight: 600; background: #F9FAFB; }
+  .positive { color: #059669; font-weight: 600; }
+  .negative { color: #DC2626; font-weight: 600; }
+  .neutral { color: var(--ink); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
   .note { margin-top: 5mm; font-size: 9pt; color: var(--muted); }
   .email { font-size: 9pt; white-space: pre-wrap; border-left: 2px solid var(--primary); padding-left: 3mm; }
