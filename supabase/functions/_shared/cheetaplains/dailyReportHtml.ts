@@ -412,7 +412,7 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
 
   const gridPages = grids
     .map(
-      (grid) => `<section class="page">
+      (grid) => `<section class="page page-landscape">
   ${heading(`Financial form ${grid.label}`)}
   <h2>Revenue on the books, budget and last year</h2>
   ${yearTable(grid, previousLabel)}
@@ -459,6 +459,9 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
     width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm;
     background: #fff; position: relative; display: flex; flex-direction: column;
   }
+  .page-landscape {
+    width: 297mm; min-height: 210mm; padding: 10mm 12mm;
+  }
   h1 { font-family: 'Italiana', Georgia, serif; font-size: 26pt; margin: 0; font-weight: 400; }
   .sub { color: var(--muted); font-size: 10pt; margin-top: 2mm; }
   .rule { height: 2px; background: var(--primary); margin: 5mm 0 6mm; }
@@ -477,9 +480,8 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   }
   table.grid th:not(:first-child), table.grid td:not(:first-child) { text-align: right; }
   table.grid td { padding: 2.2mm 3mm; border-bottom: 1px solid var(--line); }
-  table.grid.dense { font-size: 8pt; }
-  table.grid.dense { table-layout: fixed; font-size: 5.2pt; }
-  table.grid.dense th, table.grid.dense td { padding: 1.2mm 1mm; overflow-wrap: anywhere; }
+  table.grid.dense { table-layout: fixed; font-size: 7.2pt; }
+  table.grid.dense th, table.grid.dense td { padding: 1.5mm 1.2mm; overflow-wrap: anywhere; }
   table.grid.dense td { white-space: nowrap; }
   table.grid.dense tr.sum td { font-weight: 600; background: #F9FAFB; }
   .positive { color: #059669; font-weight: 600; }
@@ -502,8 +504,19 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
     font-size: 8pt; color: var(--muted);
   }
   .footer img { height: 16mm; object-fit: contain; }
-  @page { size: A4; margin: 0; }
-  @media print { body { background: #fff; } .page { margin: 0; break-after: page; } }
+  @page portrait-page { size: A4 portrait; margin: 0; }
+  @page landscape-page { size: A4 landscape; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .page {
+      page: portrait-page; width: 210mm; height: 297mm; min-height: 0; margin: 0;
+      break-before: page; break-after: auto;
+    }
+    .page:first-of-type { break-before: auto; }
+    .page-landscape {
+      page: landscape-page; width: 297mm; height: 210mm; min-height: 0;
+    }
+  }
 
 </style>
 </head>
