@@ -922,20 +922,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const comparisonSnapshot = Object.fromEntries(
-      monthUpserts.map((entry) => [
-        String(entry.month).slice(0, 7),
-        { bob: entry.bob, occupancy: entry.occupancy },
-      ]),
-    );
-    figures.comparisonSnapshot = comparisonSnapshot;
-    const { error: snapshotError } = await admin
-      .from("report_daily_days")
-      .update({ figures: figures as unknown as Record<string, unknown> })
-      .eq("property_id", run.property_id)
-      .eq("report_date", asOf);
-    if (snapshotError) return json({ error: snapshotError.message }, 500);
-
     const previousStoredDay = (storedDays ?? [])
       .filter((row) => String(row.report_date) < asOf)
       .at(-1);
@@ -947,6 +933,21 @@ Deno.serve(async (req) => {
       .eq("property_id", run.property_id)
       .order("month", { ascending: true });
     if (comparisonError) return json({ error: comparisonError.message }, 500);
+    const comparisonSnapshot = Object.fromEntries(
+      ((comparisonRows ?? []) as ComparisonMonthRow[])
+        .filter((entry) => entry.bob !== null)
+        .map((entry) => [
+          String(entry.month).slice(0, 7),
+          { bob: Number(entry.bob), occupancy: entry.occupancy === null ? null : Number(entry.occupancy) },
+        ]),
+    );
+    figures.comparisonSnapshot = comparisonSnapshot;
+    const { error: snapshotError } = await admin
+      .from("report_daily_days")
+      .update({ figures: figures as unknown as Record<string, unknown> })
+      .eq("property_id", run.property_id)
+      .eq("report_date", asOf);
+    if (snapshotError) return json({ error: snapshotError.message }, 500);
     const yearGrids = buildYearGrids((comparisonRows ?? []) as ComparisonMonthRow[], {
       current: comparisonSnapshot,
       previous: previousFigures?.comparisonSnapshot ?? null,
