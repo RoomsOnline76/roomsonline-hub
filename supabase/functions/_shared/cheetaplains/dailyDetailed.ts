@@ -75,6 +75,8 @@ export interface DailyFigures {
   created: DailyMovement | null;
   cancelled: DailyMovement | null;
   villaCount: number | null;
+  /** Full monthly confirmed BOB as it stood when this daily report was built. */
+  comparisonSnapshot?: Record<string, { bob: number; occupancy: number | null }>;
 }
 
 
