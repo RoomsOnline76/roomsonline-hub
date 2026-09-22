@@ -81,8 +81,6 @@ const NUMERIC_KEYS = [
   "lastYearOccupancy",
   "previousBob",
   "previousOccupancy",
-  "pickup",
-  "varianceToStly",
 ] as const;
 
 const emptyRow = (label: string, kind: DailyGridRow["kind"]): DailyGridRow => ({
@@ -120,6 +118,8 @@ const summarise = (
     const total = values.reduce((sum, value) => sum + value, 0);
     row[key] = /occupancy/i.test(key) ? total / values.length : total;
   }
+  row.pickup = row.bob === null || row.previousBob === null ? null : row.bob - row.previousBob;
+  row.varianceToStly = row.bob === null || row.stly === null ? null : row.bob - row.stly;
   return row;
 };
 

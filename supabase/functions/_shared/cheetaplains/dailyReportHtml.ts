@@ -111,15 +111,15 @@ const yearTable = (grid: DailyYearGrid, previousLabel: string): string => {
       const cls = entry.kind === "month" ? "" : ` class="sum"`;
       const cells = [
         esc(entry.label),
-        shortRand(entry.bob),
+        rand(entry.bob),
         pct(entry.occupancy),
-        shortRand(entry.previousBob),
+        rand(entry.previousBob),
         pct(entry.previousOccupancy),
         varianceCell(entry.pickup),
-        ...(budget ? [shortRand(entry.budget), shortRand(varianceToBudget(entry))] : []),
-        shortRand(entry.stly),
+        ...(budget ? [rand(entry.budget), varianceCell(varianceToBudget(entry))] : []),
+        rand(entry.stly),
         pct(entry.stlyOccupancy),
-        shortRand(entry.lastYear),
+        rand(entry.lastYear),
         pct(entry.lastYearOccupancy),
         varianceCell(entry.varianceToStly),
       ];
