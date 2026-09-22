@@ -277,14 +277,17 @@ Deno.serve(async (req) => {
         .select("month, bob, occupancy, budget, stly, stly_occupancy, last_year, last_year_occupancy")
         .eq("property_id", run.property_id)
         .order("month", { ascending: true });
-      const { data: priorPackDay } = await admin
+      const { data: priorPackDays } = await admin
         .from("report_daily_days")
         .select("report_date, figures")
         .eq("property_id", run.property_id)
         .lt("report_date", asOf)
         .order("report_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(30);
+      const priorPackDay = (priorPackDays ?? []).find((entry) => {
+        const candidate = entry.figures as unknown as DailyFigures | null;
+        return candidate?.comparisonSnapshot && Object.keys(candidate.comparisonSnapshot).length > 0;
+      });
       const priorPackFigures = (priorPackDay?.figures ?? null) as DailyFigures | null;
       const packGrids = buildYearGrids((packMonths ?? []) as ComparisonMonthRow[], {
         current: dayFigures?.comparisonSnapshot ?? null,
@@ -923,7 +926,11 @@ Deno.serve(async (req) => {
     }
 
     const previousStoredDay = (storedDays ?? [])
-      .filter((row) => String(row.report_date) < asOf)
+      .filter((row) => {
+        const candidate = row.figures as unknown as DailyFigures | null;
+        return String(row.report_date) < asOf && candidate?.comparisonSnapshot &&
+          Object.keys(candidate.comparisonSnapshot).length > 0;
+      })
       .at(-1);
     const previousFigures = (previousStoredDay?.figures ?? null) as DailyFigures | null;
 
