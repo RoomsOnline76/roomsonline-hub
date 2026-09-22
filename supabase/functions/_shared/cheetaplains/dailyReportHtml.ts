@@ -478,8 +478,9 @@ export function buildDailyReportHtml(options: DailyReportOptions): DailyReportRe
   table.grid th:not(:first-child), table.grid td:not(:first-child) { text-align: right; }
   table.grid td { padding: 2.2mm 3mm; border-bottom: 1px solid var(--line); }
   table.grid.dense { font-size: 8pt; }
-  table.grid.dense { table-layout: fixed; font-size: 6.4pt; }
+  table.grid.dense { table-layout: fixed; font-size: 5.2pt; }
   table.grid.dense th, table.grid.dense td { padding: 1.2mm 1mm; overflow-wrap: anywhere; }
+  table.grid.dense td { white-space: nowrap; }
   table.grid.dense tr.sum td { font-weight: 600; background: #F9FAFB; }
   .positive { color: #059669; font-weight: 600; }
   .negative { color: #DC2626; font-weight: 600; }
