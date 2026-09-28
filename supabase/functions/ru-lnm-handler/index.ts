@@ -66,14 +66,25 @@ Deno.serve(async (req) => {
       // notification is attributable in the sync console.
       let propertyUuid: string | null = null;
       if (ruPropertyId) {
-        const { data } = await admin
-          .from('pms_mappings')
+        // RU listing ids live on hostfully_room_types (units) and properties (standalone);
+        // pms_mappings never carries them, which left every notification unattributed.
+        const { data: unit } = await admin
+          .from('hostfully_room_types')
           .select('property_id')
-          .in('system_type', ['rentals_united', 'rentalsunited'])
-          .eq('external_id', ruPropertyId)
+          .eq('rentalsunited_property_id', ruPropertyId)
+          .order('is_active', { ascending: false })
           .limit(1)
           .maybeSingle();
-        propertyUuid = (data as { property_id?: string } | null)?.property_id ?? null;
+        propertyUuid = (unit as { property_id?: string } | null)?.property_id ?? null;
+        if (!propertyUuid) {
+          const { data: prop } = await admin
+            .from('properties')
+            .select('id')
+            .eq('rentalsunited_property_id', ruPropertyId)
+            .limit(1)
+            .maybeSingle();
+          propertyUuid = (prop as { id?: string } | null)?.id ?? null;
+        }
       }
 
       await admin.from('ru_sync_runs').insert({
