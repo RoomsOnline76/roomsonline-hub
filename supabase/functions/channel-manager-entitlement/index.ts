@@ -1146,7 +1146,7 @@ Deno.serve(async (req) => {
       const activeAccounts = accountResults.filter((a) => !retiredOwnerIds.has(a.owner_id));
       const allAccountsRead =
         unreadAccounts.length === 0 &&
-        (activeAccounts.length === 0 ? rosterError === null : activeAccounts.some((a) => a.read === true));
+        (activeAccounts.length === 0 || activeAccounts.some((a) => a.read === true));
       const unseen = Array.from(localRecords.values())
         .filter((l) => !seenAnywhere.has(l.listingId))
         .map((l) => ({
