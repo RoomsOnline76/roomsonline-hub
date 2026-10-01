@@ -18663,6 +18663,10 @@ export type Database = {
       }
       next_rol_itinerary_reference: { Args: never; Returns: string }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
+      property_has_valid_contract: {
+        Args: { _owner_email?: string; _property_id: string }
+        Returns: boolean
+      }
       purge_ru_call_queue_terminal: {
         Args: { _older_than_minutes?: number; _statuses?: string[] }
         Returns: number
@@ -18670,6 +18674,10 @@ export type Database = {
       rebuild_guest_stats: { Args: { _guest_ids?: string[] }; Returns: number }
       resolve_property_owner_uuid: {
         Args: { _property_id: string }
+        Returns: string
+      }
+      revoke_owner_contract: {
+        Args: { _owner_email: string; _reason: string }
         Returns: string
       }
       rol_origin_code: {
