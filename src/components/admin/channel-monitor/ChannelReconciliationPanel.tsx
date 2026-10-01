@@ -357,8 +357,8 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               {!readComplete && (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  Incomplete read — {(result.unread_owner_ids || []).length || 1} account
-                  {((result.unread_owner_ids || []).length || 1) === 1 ? "" : "s"} did not answer, no id can be
+                  Incomplete read — {(result.unread_owner_ids || []).length || "the roster"} account
+                  {(result.unread_owner_ids || []).length === 1 ? "" : "s"} did not answer, no id can be
                   called stale
                 </Badge>
               )}
@@ -449,25 +449,8 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               </details>
             )}
 
-            {/* Retired test sub-accounts: kept visible so the excluded rows are auditable,
-                but deliberately collapsed — nothing here is read, counted or pushed to. */}
-            {(result.retired_accounts?.length ?? 0) > 0 && (
-              <details className="rounded-md border border-border p-3 text-xs text-muted-foreground">
-                <summary className="cursor-pointer text-sm font-medium text-foreground">
-                  {result.retired_accounts!.length} retired test sub-account
-                  {result.retired_accounts!.length === 1 ? "" : "s"} excluded from all counts
-                </summary>
-                <div className="mt-2 space-y-1">
-                  {result.retired_accounts!.map((a) => (
-                    <p key={a.ru_owner_id}>
-                      OwnerID {a.ru_owner_id}
-                      {a.portal_email ? ` · ${a.portal_email}` : ""}
-                      {a.reason ? ` — ${a.reason}` : ""}
-                    </p>
-                  ))}
-                </div>
-              </details>
-            )}
+            {/* Retired (dormant) accounts are no longer listed here — they are reviewable
+                and restorable in Advanced → Orphan distribution accounts. */}
 
 
 
