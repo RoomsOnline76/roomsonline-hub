@@ -1142,7 +1142,10 @@ Deno.serve(async (req) => {
       // empty, the unseen ids are reported as unverified instead — the cleanup path
       // must never act on a read that did not happen.
       const unreadAccounts = accountResults.filter((a) => a.error !== null && (a.bound || a.monitored));
-      const allAccountsRead = unreadAccounts.length === 0 && accountResults.some((a) => a.read === true);
+      // No active accounts at all (every one retired) is a complete read, not a failed one.
+      const allAccountsRead =
+        unreadAccounts.length === 0 &&
+        (accountResults.length === 0 ? rosterError === null : accountResults.some((a) => a.read === true));
       const unseen = Array.from(localRecords.values())
         .filter((l) => !seenAnywhere.has(l.listingId))
         .map((l) => ({
