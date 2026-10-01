@@ -54,6 +54,10 @@ export function useOwnerContract(ownerEmail: string | undefined) {
     enabled: !!ownerEmail,
   });
 
+  // Revoked records remain in Admin Contracts as audit history, but the
+  // property editor presents a clean state for issuing the replacement.
+  const contract = latestContract?.status === "revoked" ? null : latestContract;
+
   // Fetch all properties for this owner (including amenities for contract variables)
   const { data: ownerProperties } = useQuery({
     queryKey: ["owner-properties", ownerEmail],
@@ -181,9 +185,6 @@ export function useOwnerContract(ownerEmail: string | undefined) {
   });
 
   const hasValidContract = latestContract?.status === "signed" || latestContract?.status === "overridden";
-  // Revoked records remain in Admin Contracts as audit history, but the
-  // property editor presents a clean state for issuing the replacement.
-  const contract = latestContract?.status === "revoked" ? null : latestContract;
 
   return {
     contract,
