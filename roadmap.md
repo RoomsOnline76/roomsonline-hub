@@ -1,8 +1,8 @@
 # Roadmap — Leopard full-cycle channel test (2026-08-31)
 
 ## Onboarding listing eligibility (2026-10-01)
-- [ ] Exclude properties whose latest owner contract is revoked from the onboarding queue
-- [ ] Verify Albatros, Sealion, Leopard Cottage, and PufferFish are absent
+- [x] Exclude properties whose latest owner contract is revoked from the onboarding queue
+- [x] Verify Albatros, Sealion, Leopard Cottage, and PufferFish are absent
 
 ## Revoked contract listing enforcement (2026-10-01)
 - [x] Latest contract version is authoritative across activation and public discovery
