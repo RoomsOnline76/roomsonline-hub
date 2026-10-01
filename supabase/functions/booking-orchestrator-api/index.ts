@@ -1135,6 +1135,17 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    const requirePubliclyBookableProperty = async (propertyId: string) => {
+      const { data: property, error } = await supabase
+        .from("public_properties")
+        .select("id")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return property !== null;
+    };
+
     // ── validate_voucher ─────────────────────────────────────────────
     if (action === "validate_voucher") {
       const res = await fetch(`${supabaseUrl}/functions/v1/validate-voucher`, {
@@ -1162,6 +1173,9 @@ Deno.serve(async (req) => {
       const { property_id, rooms, age_verified, is_subscriber, selected_special_id } = body;
       if (!property_id || !Array.isArray(rooms) || rooms.length === 0) {
         return fail("Missing property_id or rooms");
+      }
+      if (!(await requirePubliclyBookableProperty(property_id))) {
+        return fail("This property is not currently available for booking", 403);
       }
       try {
         const quote = await quoteStayForRooms(supabase, property_id, rooms, {
@@ -1202,6 +1216,9 @@ Deno.serve(async (req) => {
 
       if (!property_id || !start_date || !end_date) {
         return fail("Missing property_id, start_date, or end_date");
+      }
+      if (!(await requirePubliclyBookableProperty(property_id))) {
+        return fail("This property is not currently available for booking", 403);
       }
 
       // 1. Look up property

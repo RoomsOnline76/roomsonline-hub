@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { isValidLatestContract, propertyEditorContract, type ContractStatus } from "@/lib/contractStatus";
 
 export interface OwnerContract {
   id: string;
   owner_email: string;
   owner_name: string | null;
-  status: 'draft' | 'sent' | 'viewed' | 'signed' | 'declined' | 'overridden';
+  status: ContractStatus;
   version: number;
   template_version: string;
   template_version_id: string | null;
@@ -35,7 +36,7 @@ export function useOwnerContract(ownerEmail: string | undefined) {
   const queryClient = useQueryClient();
 
   // Fetch the latest contract for an owner
-  const { data: contract, isLoading, refetch } = useQuery({
+  const { data: latestContract, isLoading, refetch } = useQuery({
     queryKey: ["owner-contract", ownerEmail],
     queryFn: async () => {
       if (!ownerEmail) return null;
@@ -53,6 +54,10 @@ export function useOwnerContract(ownerEmail: string | undefined) {
     },
     enabled: !!ownerEmail,
   });
+
+  // Revoked records remain in Admin Contracts as audit history, but the
+  // property editor presents a clean state for issuing the replacement.
+  const contract = propertyEditorContract(latestContract);
 
   // Fetch all properties for this owner (including amenities for contract variables)
   const { data: ownerProperties } = useQuery({
@@ -180,7 +185,7 @@ export function useOwnerContract(ownerEmail: string | undefined) {
     },
   });
 
-  const hasValidContract = contract?.status === "signed" || contract?.status === "overridden";
+  const hasValidContract = isValidLatestContract(latestContract);
 
   return {
     contract,

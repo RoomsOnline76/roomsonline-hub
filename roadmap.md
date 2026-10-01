@@ -1,5 +1,11 @@
 # Roadmap — Leopard full-cycle channel test (2026-08-31)
 
+## Revoked contract listing enforcement (2026-10-01)
+- [x] Latest contract version is authoritative across activation and public discovery
+- [x] Revocation atomically removes covered properties from public listing and booking
+- [x] Property editor hides revoked contract records while Admin Contracts keeps history
+- [x] Jongensfontein repair and focused verification complete
+
 ## Channel Manager connection wizard (2026-09-11)
 - [x] Move the White Label client to the physical `/channel-manager/` document
 - [x] Remove the root base tag and vendor-DOM inspection
