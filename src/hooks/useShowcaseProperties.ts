@@ -41,7 +41,7 @@ export function useShowcaseProperties() {
     queryKey: ["properties-showcase-list"],
     queryFn: async (): Promise<ShowcaseProperty[]> => {
       const { data, error } = await supabase
-        .from("public_properties")
+        .from("contract_safe_showcase_properties")
         .select(SELECT)
         .order("name");
 

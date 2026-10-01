@@ -140,7 +140,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
     queryKey: ["properties-all-segments"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("public_properties")
+        .from("contract_safe_showcase_properties")
         .select(`
           id, slug, name, city, country, images, description,
           editorial_rating, navigation_tags, external_system,
