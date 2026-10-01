@@ -9,6 +9,7 @@ import {
   type ChannelQueueStage,
 } from "@/lib/onboardingQueueProgress";
 import { scoreWebsiteListing } from "@/lib/websiteWizardScore";
+import { isEligibleForOnboardingQueue, type ContractStatus } from "@/lib/contractStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -660,7 +661,16 @@ export default function AdminOnboarding() {
 
 
 
-      const enrichedProperties: PropertyOnboardingRow[] = realProperties.map((prop) => {
+      const onboardingProperties = realProperties.filter((prop) => {
+        const latestStatus = prop.owner_email
+          ? contractByEmail.get(String(prop.owner_email).toLowerCase())
+          : undefined;
+        return isEligibleForOnboardingQueue(
+          latestStatus ? { status: latestStatus as ContractStatus } : null,
+        );
+      });
+
+      const enrichedProperties: PropertyOnboardingRow[] = onboardingProperties.map((prop) => {
         const amenities = prop.amenities as Record<string, unknown> | null;
         const isNightsBridge = prop.external_system === "nightsbridge";
         const isRolos = rolosSystems.has(String(prop.external_system ?? "").toLowerCase());
