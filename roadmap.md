@@ -4,7 +4,7 @@
 - [x] Latest contract version is authoritative across activation and public discovery
 - [x] Revocation atomically removes covered properties from public listing and booking
 - [x] Property editor hides revoked contract records while Admin Contracts keeps history
-- [ ] Jongensfontein repair and focused verification complete
+- [x] Jongensfontein repair and focused verification complete
 
 ## Channel Manager connection wizard (2026-09-11)
 - [x] Move the White Label client to the physical `/channel-manager/` document
