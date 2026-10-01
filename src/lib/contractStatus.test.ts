@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isValidLatestContract, propertyEditorContract } from "./contractStatus";
+import {
+  isEligibleForOnboardingQueue,
+  isValidLatestContract,
+  propertyEditorContract,
+} from "./contractStatus";
 
 describe("latest contract status", () => {
   it("accepts only a latest signed or overridden contract", () => {
@@ -15,5 +19,12 @@ describe("latest contract status", () => {
       status: "sent",
       id: "replacement",
     });
+  });
+
+  it("removes a revoked agreement from the onboarding work queue", () => {
+    expect(isEligibleForOnboardingQueue({ status: "revoked" })).toBe(false);
+    expect(isEligibleForOnboardingQueue({ status: "sent" })).toBe(true);
+    expect(isEligibleForOnboardingQueue({ status: "signed" })).toBe(true);
+    expect(isEligibleForOnboardingQueue(null)).toBe(true);
   });
 });

@@ -15,6 +15,11 @@ export function isValidLatestContract(contract: ContractWithStatus | null | unde
   return contract?.status === "signed" || contract?.status === "overridden";
 }
 
+/** A revoked agreement is historical only and must not remain actionable in onboarding. */
+export function isEligibleForOnboardingQueue(contract: ContractWithStatus | null | undefined): boolean {
+  return contract?.status !== "revoked";
+}
+
 export function propertyEditorContract<T extends ContractWithStatus>(contract: T | null | undefined): T | null {
   return contract?.status === "revoked" ? null : contract ?? null;
 }
