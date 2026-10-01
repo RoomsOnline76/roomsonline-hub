@@ -1,9 +1,9 @@
 # Roadmap — Leopard full-cycle channel test (2026-08-31)
 
 ## Revoked contract listing enforcement (2026-10-01)
-- [ ] Latest contract version is authoritative across activation and public discovery
-- [ ] Revocation atomically removes covered properties from public listing and booking
-- [ ] Property editor hides revoked contract records while Admin Contracts keeps history
+- [x] Latest contract version is authoritative across activation and public discovery
+- [x] Revocation atomically removes covered properties from public listing and booking
+- [x] Property editor hides revoked contract records while Admin Contracts keeps history
 - [ ] Jongensfontein repair and focused verification complete
 
 ## Channel Manager connection wizard (2026-09-11)
