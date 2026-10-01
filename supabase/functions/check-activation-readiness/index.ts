@@ -376,44 +376,22 @@ async function checkContractValid(supabase: any, property: any): Promise<Quality
     };
   }
 
-  // Check owner_contracts table first
-  const { data: ownerContract } = await supabase
-    .from('owner_contracts')
-    .select('status, signed_at, override_at')
-    .eq('owner_email', ownerEmail)
-    .in('status', ['signed', 'overridden'])
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data: contractValid, error: contractError } = await supabase
+    .rpc('property_has_valid_contract', {
+      _property_id: property.id,
+      _owner_email: ownerEmail,
+    });
 
-  if (ownerContract) {
-    return {
-      id: 'contract',
-      name: 'Valid Contract',
-      passed: true,
-      message: ownerContract.status === 'signed' 
-        ? `Contract signed on ${new Date(ownerContract.signed_at).toLocaleDateString()}`
-        : 'Contract overridden by admin',
-      severity: 'blocker'
-    };
+  if (contractError) {
+    console.error('Contract readiness check failed:', contractError);
   }
 
-  // Fallback: check legacy property_contracts
-  const { data: legacyContract } = await supabase
-    .from('property_contracts')
-    .select('status, signed_at')
-    .eq('property_id', property.id)
-    .in('status', ['signed', 'overridden'])
-    .order('version', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (legacyContract) {
+  if (contractValid === true) {
     return {
       id: 'contract',
       name: 'Valid Contract',
       passed: true,
-      message: 'Legacy contract found',
+      message: 'Latest contract is signed or overridden',
       severity: 'blocker'
     };
   }
@@ -422,7 +400,7 @@ async function checkContractValid(supabase: any, property: any): Promise<Quality
     id: 'contract',
     name: 'Valid Contract',
     passed: false,
-    message: 'No signed contract found for this owner',
+    message: 'The latest contract is not signed or overridden',
     fix: 'Send and sign a contract before activation',
     severity: 'blocker'
   };

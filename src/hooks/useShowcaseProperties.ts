@@ -41,11 +41,9 @@ export function useShowcaseProperties() {
     queryKey: ["properties-showcase-list"],
     queryFn: async (): Promise<ShowcaseProperty[]> => {
       const { data, error } = await supabase
-        .from("properties")
+        .from("public_properties")
         .select(SELECT)
-        .eq("is_active", true)
-        .eq("show_on_website", true)
-        .is("permanently_deleted_at", null);
+        .order("name");
 
       if (error) throw error;
       return (data || []) as unknown as ShowcaseProperty[];

@@ -1104,29 +1104,10 @@ export default function AdminContracts() {
 
     try {
       setRevoking(true);
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Get the actual max version to avoid unique constraint violations
-      const { data: maxVersionRow } = await supabase
-        .from("owner_contracts")
-        .select("version")
-        .eq("owner_email", revokeContract.owner_email)
-        .order("version", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const nextVersion = (maxVersionRow?.version || revokeContract.version) + 1;
-
-      const { error } = await supabase.from("owner_contracts").insert({
-        owner_email: revokeContract.owner_email,
-        owner_name: revokeContract.owner_name,
-        status: "revoked",
-        version: nextVersion,
-        template_version: revokeContract.template_version,
-        override_at: new Date().toISOString(),
-        override_by: user?.id || null,
-        override_reason: revokeReason.trim(),
-      });
+      const { error } = await supabase.rpc("revoke_owner_contract" as never, {
+        _owner_email: revokeContract.owner_email,
+        _reason: revokeReason.trim(),
+      } as never);
 
       if (error) throw error;
 

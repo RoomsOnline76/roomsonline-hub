@@ -140,16 +140,14 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
     queryKey: ["properties-all-segments"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("properties")
+        .from("public_properties")
         .select(`
           id, slug, name, city, country, images, description,
           editorial_rating, navigation_tags, external_system,
           why_we_chose_this_place, who_this_suits, 
           what_its_really_like, why_this_place_matters, who_its_not_for
         `)
-        .eq("is_active", true)
-        .eq("show_on_website", true)
-        .is("permanently_deleted_at", null);
+        .order("name");
 
       if (error) throw error;
       
