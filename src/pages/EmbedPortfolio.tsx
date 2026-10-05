@@ -140,9 +140,9 @@ export default function EmbedPortfolio() {
   const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
   const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
   const [heroVideoMuted, setHeroVideoMuted] = useState(true);
-  // Resolve branding — canonical (no `wl=1`) always renders ROL pink; only
-  // white-label embeds forward portfolio/URL branding. Mirrors EmbedProperty.
-  const wlActive = searchParams.get("wl") === "1";
+  // Resolve branding from either an explicit embed flag or the portfolio's
+  // billing-owned entitlement. This keeps direct portfolio links branded too.
+  const wlActive = searchParams.get("wl") === "1" || portfolio?.white_label_enabled === true;
   const ROL_PINK = "#E91E8C";
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
   const brandColor = wlActive
@@ -1172,7 +1172,7 @@ export default function EmbedPortfolio() {
       )}
 
       {/* Footer */}
-      {searchParams.get("wl") !== "1" && (
+      {!wlActive && (
         <div className="border-t py-3 px-4 flex justify-center">
           <PoweredByRolOS />
         </div>

@@ -57,6 +57,6 @@
 - Rate card: derived plans (BAR/Corp) now show season columns in single view; 30-night font shrunk to fit 4 digits; derived display uses nearest_10 rounding rule
 
 ## Jongensfontein portfolio white-label branding (2026-10-05)
-- [ ] Resolve the Jongensfontein portfolio palette when white-label is enabled
-- [ ] Apply portfolio colours across the public portfolio and property hand-off
+- [x] Resolve the Jongensfontein portfolio palette when white-label is enabled
+- [x] Apply portfolio colours across the public portfolio and property hand-off
 - [ ] Verify the supplied portfolio link no longer uses ROL'OS pink
