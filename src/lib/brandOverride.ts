@@ -183,8 +183,21 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
     }
   }
 
-  // Heading text color (fallback to legacy fontColor)
-  const headingHex = brand.headingTextColor || brand.fontColor;
+  // The surface text actually sits on: owner light bg, else the live theme surface.
+  const themeIsDark =
+    typeof document !== "undefined" &&
+    (document.documentElement.classList.contains("dark") ||
+      (typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches) ||
+      (() => {
+        const bg = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+        const l = Number(bg.split(/\s+/)[2]?.replace("%", ""));
+        return Number.isFinite(l) && l < 40;
+      })());
+  const surfaceHex = brand.lightBgColor || (themeIsDark ? "#111418" : "#ffffff");
+
+  // Heading text color (fallback to legacy fontColor) — only when readable on the surface
+  const rawHeadingHex = brand.headingTextColor || brand.fontColor;
+  const headingHex = rawHeadingHex && contrastRatio(rawHeadingHex, surfaceHex) >= 4.5 ? rawHeadingHex : null;
   if (headingHex) {
     const hsl = hexToHsl(headingHex);
     if (hsl) {
@@ -194,7 +207,8 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   }
 
   // Body text color (fallback to legacy fontColor)
-  const bodyHex = brand.bodyTextColor || brand.fontColor;
+  const rawBodyHex = brand.bodyTextColor || brand.fontColor;
+  const bodyHex = rawBodyHex && contrastRatio(rawBodyHex, surfaceHex) >= 4.5 ? rawBodyHex : null;
   if (bodyHex) {
     const hsl = hexToHsl(bodyHex);
     if (hsl) {
@@ -250,8 +264,8 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   // ── Dynamic contrast safety ──
   // The engine must guarantee readable text on the actual branded surfaces.
   // effectiveBgHex is the surface text sits on; default to white if not set.
-  const effectiveBgHex = brand.lightBgColor || "#ffffff";
-  const hasExplicitForeground = !!(brand.headingTextColor || brand.fontColor);
+  const effectiveBgHex = surfaceHex;
+  const hasExplicitForeground = !!headingHex;
 
   if (!hasExplicitForeground) {
     if (isLightColor(effectiveBgHex)) {
