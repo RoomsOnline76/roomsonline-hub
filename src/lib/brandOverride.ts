@@ -206,7 +206,8 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   }
 
   // Body text color (fallback to legacy fontColor)
-  const bodyHex = brand.bodyTextColor || brand.fontColor;
+  const rawBodyHex = brand.bodyTextColor || brand.fontColor;
+  const bodyHex = rawBodyHex && contrastRatio(rawBodyHex, surfaceHex) >= 4.5 ? rawBodyHex : null;
   if (bodyHex) {
     const hsl = hexToHsl(bodyHex);
     if (hsl) {
@@ -262,8 +263,8 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   // ── Dynamic contrast safety ──
   // The engine must guarantee readable text on the actual branded surfaces.
   // effectiveBgHex is the surface text sits on; default to white if not set.
-  const effectiveBgHex = brand.lightBgColor || "#ffffff";
-  const hasExplicitForeground = !!(brand.headingTextColor || brand.fontColor);
+  const effectiveBgHex = surfaceHex;
+  const hasExplicitForeground = !!headingHex;
 
   if (!hasExplicitForeground) {
     if (isLightColor(effectiveBgHex)) {
