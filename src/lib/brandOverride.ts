@@ -183,8 +183,20 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
     }
   }
 
-  // Heading text color (fallback to legacy fontColor)
-  const headingHex = brand.headingTextColor || brand.fontColor;
+  // The surface text actually sits on: owner light bg, else the live theme surface.
+  const themeIsDark =
+    typeof document !== "undefined" &&
+    (document.documentElement.classList.contains("dark") ||
+      (() => {
+        const bg = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
+        const l = Number(bg.split(/\s+/)[2]?.replace("%", ""));
+        return Number.isFinite(l) && l < 40;
+      })());
+  const surfaceHex = brand.lightBgColor || (themeIsDark ? "#111418" : "#ffffff");
+
+  // Heading text color (fallback to legacy fontColor) — only when readable on the surface
+  const rawHeadingHex = brand.headingTextColor || brand.fontColor;
+  const headingHex = rawHeadingHex && contrastRatio(rawHeadingHex, surfaceHex) >= 4.5 ? rawHeadingHex : null;
   if (headingHex) {
     const hsl = hexToHsl(headingHex);
     if (hsl) {
