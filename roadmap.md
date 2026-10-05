@@ -59,4 +59,4 @@
 ## Jongensfontein portfolio white-label branding (2026-10-05)
 - [x] Resolve the Jongensfontein portfolio palette when white-label is enabled
 - [x] Apply portfolio colours across the public portfolio and property hand-off
-- [ ] Verify the supplied portfolio link no longer uses ROL'OS pink
+- [x] Verify the supplied portfolio link no longer uses ROL'OS pink
