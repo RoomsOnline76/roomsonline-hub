@@ -55,3 +55,8 @@
 - [x] BAR vs Rack compare showed identical nightly values — plan card previews resolved from the property's primary plan; `preview_plan` now scopes the resolver to the requested plan (`preferRatePlanId`)
 - [x] Sealion season blocks: BAR = Rack −10%, Corporate = Rack −15% — both plans linked as derived plans off Rack so season amounts track Rack per season
 - Rate card: derived plans (BAR/Corp) now show season columns in single view; 30-night font shrunk to fit 4 digits; derived display uses nearest_10 rounding rule
+
+## Jongensfontein portfolio white-label branding (2026-10-05)
+- [x] Resolve the Jongensfontein portfolio palette when white-label is enabled
+- [x] Apply portfolio colours across the public portfolio and property hand-off
+- [x] Verify the supplied portfolio link no longer uses ROL'OS pink

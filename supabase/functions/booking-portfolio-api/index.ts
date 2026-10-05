@@ -119,6 +119,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // White-label presentation is entitlement-owned. Public portfolio links do
+    // not need a caller-supplied `wl=1` flag when billing explicitly enables it.
+    const { data: portfolioBilling } = await supabase
+      .from("portfolio_billing_configs")
+      .select("white_label_allowed")
+      .eq("portfolio_id", portfolio.id)
+      .maybeSingle();
+    const whiteLabelEnabled = portfolioBilling?.white_label_allowed === true;
+
     // Fetch members
     const { data: members } = await supabase
       .from("property_portfolio_members")
@@ -127,7 +136,12 @@ Deno.serve(async (req) => {
 
     if (!members || members.length === 0) {
       return new Response(JSON.stringify({
-        portfolio: { name: portfolio.name, slug: portfolio.slug, branding: portfolio.metadata?.branding || {} },
+        portfolio: {
+          name: portfolio.name,
+          slug: portfolio.slug,
+          branding: portfolio.metadata?.branding || {},
+          white_label_enabled: whiteLabelEnabled,
+        },
         properties: [],
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -603,6 +617,7 @@ Deno.serve(async (req) => {
         name: portfolio.name,
         slug: portfolio.slug,
         branding: portfolio.metadata?.branding || {},
+        white_label_enabled: whiteLabelEnabled,
       },
       properties: mapped,
       specials: mappedSpecials,
