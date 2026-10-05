@@ -187,6 +187,7 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   const themeIsDark =
     typeof document !== "undefined" &&
     (document.documentElement.classList.contains("dark") ||
+      (typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches) ||
       (() => {
         const bg = getComputedStyle(document.documentElement).getPropertyValue("--background").trim();
         const l = Number(bg.split(/\s+/)[2]?.replace("%", ""));
