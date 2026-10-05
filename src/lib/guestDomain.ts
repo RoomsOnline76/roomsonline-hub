@@ -31,8 +31,7 @@ const ADMIN_HOSTS = new Set([
  * the login screen while the public lookup is in flight.
  */
 const BUILTIN_GUEST_HOSTS: Record<string, GuestHostTarget> = {
-  "book.rolos.co.za": { kind: "portfolio", slug: "jongensfontein" },
-  "book.sleepinafrica.roomsonline.co.za": { kind: "portfolio", slug: "jongensfontein" },
+  "book.rolos.co.za": { kind: "portfolio", slug: "rolos-testing" },
 };
 
 export const currentHost = (): string =>
