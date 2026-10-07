@@ -95,3 +95,35 @@ export function useSalesReps() {
     remove,
   };
 }
+
+export interface RepLinkedProperty {
+  property_id: string;
+  property_name: string;
+  status: string;
+}
+
+/** Properties linked to each rep via Property Referrals, keyed by rep id. */
+export function useRepLinkedProperties() {
+  return useQuery({
+    queryKey: ["rep-linked-properties"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("property_referrals")
+        .select("rep_id, property_id, status, properties(name)")
+        .order("referral_date", { ascending: false });
+      if (error) throw error;
+
+      const byRep = new Map<string, RepLinkedProperty[]>();
+      for (const row of data as Array<{ rep_id: string; property_id: string; status: string; properties: { name: string } | null }>) {
+        const list = byRep.get(row.rep_id) ?? [];
+        list.push({
+          property_id: row.property_id,
+          property_name: row.properties?.name ?? "Unnamed property",
+          status: row.status,
+        });
+        byRep.set(row.rep_id, list);
+      }
+      return byRep;
+    },
+  });
+}
