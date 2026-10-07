@@ -125,6 +125,8 @@ export default function AdminUsers() {
             primaryRole = "fearless_leader";
           } else if (userRoles.includes("admin")) {
             primaryRole = "admin";
+          } else if (userRoles.includes("sales_rep")) {
+            primaryRole = "sales_rep";
           } else if (userRoles.includes("user")) {
             primaryRole = "user";
           }
@@ -206,14 +208,14 @@ export default function AdminUsers() {
         .from("user_roles")
         .delete()
         .eq("user_id", userId)
-        .in("role", ["admin", "user"]);
+        .in("role", ["admin", "user", "sales_rep"]);
 
       if (deleteError) throw deleteError;
 
       // Insert the new role
       const { error: insertError } = await supabase
         .from("user_roles")
-        .insert({ user_id: userId, role: newRole as "admin" | "user" });
+        .insert({ user_id: userId, role: newRole as "admin" | "user" | "sales_rep" });
 
       if (insertError) throw insertError;
 
@@ -322,6 +324,7 @@ export default function AdminUsers() {
   const totalUsers = useMemo(() => users.length, [users]);
   const adminCount = useMemo(() => users.filter(u => u.role === "admin").length, [users]);
   const ownerCount = useMemo(() => users.filter(u => u.role === "user").length, [users]);
+  const salesRepCount = useMemo(() => users.filter(u => u.role === "sales_rep").length, [users]);
 
   if (authLoading || loading) {
     return (
@@ -337,7 +340,7 @@ export default function AdminUsers() {
     <AppLayout>
       <PageHeader
         title="Team"
-        subtitle={`${adminCount} admins · ${ownerCount} owners`}
+        subtitle={`${adminCount} admins · ${ownerCount} owners · ${salesRepCount} sales reps`}
         actions={
           <div className="flex gap-2">
             <Button
@@ -531,6 +534,12 @@ export default function AdminUsers() {
                                       <div className="flex items-center gap-1">
                                         <Shield className="h-3 w-3" />
                                         <span className="text-xs">Admin</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="sales_rep">
+                                      <div className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        <span className="text-xs">Sales Rep</span>
                                       </div>
                                     </SelectItem>
                                   </SelectContent>
