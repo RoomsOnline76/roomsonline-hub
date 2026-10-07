@@ -67,6 +67,7 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [addAdminModalOpen, setAddAdminModalOpen] = useState(false);
   const [addOwnerModalOpen, setAddOwnerModalOpen] = useState(false);
+  const [addRepModalOpen, setAddRepModalOpen] = useState(false);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   
   // Add PMS modal state
@@ -351,6 +352,15 @@ export default function AdminUsers() {
             >
               <Plus className="h-3.5 w-3.5" />
               Add Owner
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddRepModalOpen(true)}
+              className="gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Sales Rep
             </Button>
             <Button
               size="sm"
@@ -729,6 +739,12 @@ export default function AdminUsers() {
         open={addOwnerModalOpen}
         onOpenChange={setAddOwnerModalOpen}
         role="user"
+        onUserAdded={loadUsers}
+      />
+      <AddUserModal
+        open={addRepModalOpen}
+        onOpenChange={setAddRepModalOpen}
+        role="sales_rep"
         onUserAdded={loadUsers}
       />
       

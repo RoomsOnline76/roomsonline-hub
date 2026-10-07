@@ -115,7 +115,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       const payload: Record<string, any> = {
         email: validated.email,
         full_name: validated.full_name,
-        role: role === "sales_rep" ? "user" : role,
+        role,
         pms_systems: role === "user" ? selectedPMSSystems : undefined,
         sales_rep: role === "sales_rep" ? {
           rep_code: repCode || `REP-${Date.now().toString(36).toUpperCase()}`,

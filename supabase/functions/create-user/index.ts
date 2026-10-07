@@ -13,7 +13,11 @@ const corsHeaders = {
 const requestSchema = z.object({
   email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
   full_name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
-  role: z.enum(["admin", "user"], { errorMap: () => ({ message: "Role must be admin or user" }) }),
+  role: z.enum(["admin", "user", "sales_rep"], { errorMap: () => ({ message: "Role must be admin, user or sales_rep" }) }),
+  sales_rep: z.object({
+    rep_code: z.string().trim().min(1).max(50),
+    commission_tier: z.string().optional(),
+  }).optional(),
   pms_systems: z.array(z.string()).optional(),
   // Hostfully-specific fields - now only Agency UID (owner provides API key on first login)
   hostfully_agency_uid: z.string().optional(),
@@ -69,6 +73,7 @@ Deno.serve(async (req) => {
       pms_systems,
       hostfully_agency_uid,
       hostfully_owner_will_provide,
+      sales_rep,
     } = validationResult.data;
 
     // Check if user already exists in auth
@@ -151,6 +156,26 @@ Deno.serve(async (req) => {
       if (roleError) throw roleError;
     }
 
+    // Sales reps: ensure a linked sales_reps record exists
+    if (role === 'sales_rep') {
+      const { data: existingRep } = await supabaseAdmin
+        .from('sales_reps').select('id').or(`user_id.eq.${userId},email.eq.${email}`).maybeSingle();
+      if (existingRep) {
+        const { error: linkErr } = await supabaseAdmin.from('sales_reps')
+          .update({ user_id: userId, is_active: true }).eq('id', existingRep.id);
+        if (linkErr) throw linkErr;
+      } else {
+        const { error: repErr } = await supabaseAdmin.from('sales_reps').insert({
+          user_id: userId,
+          email,
+          display_name: full_name,
+          rep_code: sales_rep?.rep_code || `REP-${Date.now().toString(36).toUpperCase()}`,
+          commission_tier: sales_rep?.commission_tier || 'base',
+        });
+        if (repErr) throw repErr;
+      }
+    }
+
     // Create PMS credentials for owners if PMS systems were selected
     if (role === 'user' && pms_systems && pms_systems.length > 0) {
       for (const systemType of pms_systems) {
@@ -217,7 +242,7 @@ Deno.serve(async (req) => {
         const fromEmail = fromEmailConfig || "RoomsOnline <hello@notify.roomsonline.co.za>";
 
         const setupLink = resetData.properties.action_link;
-        const roleLabel = role === 'user' ? 'Property Owner' : 'Administrator';
+        const roleLabel = role === 'user' ? 'Property Owner' : role === 'sales_rep' ? 'Sales Rep' : 'Administrator';
         
         // Dynamic email content based on whether user is new or existing
         const emailSubject = isNewUser 
