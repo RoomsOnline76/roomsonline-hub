@@ -304,6 +304,32 @@ export default function AdminSalesReps() {
                 {rep.phone && <p className="text-xs text-muted-foreground">{rep.phone}</p>}
                 <p className="text-xs">Target: {rep.quarterly_target ?? "—"} properties/quarter</p>
                 {(() => {
+                  const linked = linkedProperties.data?.get(rep.id) ?? [];
+                  const visible = linked.slice(0, 6);
+                  const overflow = linked.length - visible.length;
+                  return (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-xs font-medium">
+                        Linked properties: {linked.length === 0
+                          ? <span className="text-muted-foreground font-normal">none yet</span>
+                          : linked.length}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {visible.map((lp) => (
+                          <Badge key={lp.property_id} variant="secondary" className="text-[10px] font-normal">
+                            {lp.property_name}
+                          </Badge>
+                        ))}
+                        {overflow > 0 && (
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            +{overflow} more
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+                {(() => {
                   const t = resolveRepTerms(rep, repGlobals);
                   return (
                     <p className="text-xs text-muted-foreground">
