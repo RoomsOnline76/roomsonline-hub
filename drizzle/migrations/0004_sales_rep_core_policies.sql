@@ -1,0 +1,6 @@
+CREATE POLICY "Assigned reps view properties" ON public.properties FOR SELECT TO authenticated USING (public.is_assigned_rep(id, auth.uid()));
+CREATE POLICY "Assigned reps update properties" ON public.properties FOR UPDATE TO authenticated USING (public.is_assigned_rep(id, auth.uid())) WITH CHECK (public.is_assigned_rep(id, auth.uid()));
+CREATE POLICY "Assigned reps view bookings" ON public.bookings FOR SELECT TO authenticated USING (public.is_assigned_rep(property_id, auth.uid()));
+CREATE POLICY "Assigned reps update bookings" ON public.bookings FOR UPDATE TO authenticated USING (public.is_assigned_rep(property_id, auth.uid())) WITH CHECK (public.is_assigned_rep(property_id, auth.uid()));
+CREATE POLICY "Assigned reps manage room types" ON public.hostfully_room_types FOR ALL TO authenticated USING (public.is_assigned_rep(property_id, auth.uid())) WITH CHECK (public.is_assigned_rep(property_id, auth.uid()));
+CREATE POLICY "Assigned reps manage availability" ON public.property_availability FOR ALL TO authenticated USING (public.is_assigned_rep(property_id, auth.uid())) WITH CHECK (public.is_assigned_rep(property_id, auth.uid()));

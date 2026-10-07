@@ -19625,6 +19625,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_assigned_rep: {
+        Args: { _property_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_cost_share_owner: { Args: never; Returns: boolean }
       is_linked_owner: {
         Args: { _property_id: string; _user_id: string }
@@ -19665,6 +19669,7 @@ export type Database = {
         Returns: number
       }
       rebuild_guest_stats: { Args: { _guest_ids?: string[] }; Returns: number }
+      rep_property_ids: { Args: { _user_id: string }; Returns: string[] }
       resolve_property_owner_uuid: {
         Args: { _property_id: string }
         Returns: string

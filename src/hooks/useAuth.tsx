@@ -3,7 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, computeUserRole } from "@/lib/permissions";
-import { resolveScopedPropertyIds } from "@/lib/adminScope";
+import { REP_NO_PROPERTY_SENTINEL, resolveScopedPropertyIds } from "@/lib/adminScope";
 
 interface Profile {
   id: string;
@@ -148,15 +148,24 @@ function useAuthState() {
   const roles = context?.roles ?? [];
   const isDev = roles.includes("dev");
   const isFearlessLeader = roles.includes("fearless_leader");
-  const isAdmin = roles.includes("admin") || isDev || isFearlessLeader;
+  const isPlatformAdmin = roles.includes("admin") || isDev || isFearlessLeader;
   const isSalesRep = roles.includes("sales_rep");
+  // Sales reps act as admins confined to the properties assigned to them.
+  const isRepAdmin = isSalesRep && !isPlatformAdmin;
+  const isAdmin = isPlatformAdmin || isRepAdmin;
 
   // Scoped admins are admins confined to specific properties. The scope rows
   // are readable by their own owner, so a plain table read is enough.
   const { data: scopeRows, isPending: scopePending } = useQuery({
-    queryKey: ["admin-scope", userId],
+    queryKey: ["admin-scope", userId, isRepAdmin],
     enabled: !!userId && isAdmin,
     queryFn: async () => {
+      if (isRepAdmin) {
+        const { data, error } = await supabase.rpc("rep_property_ids", { _user_id: userId as string });
+        if (error) throw error;
+        const ids = ((data ?? []) as unknown as string[]).filter(Boolean);
+        return ids.length ? ids : [REP_NO_PROPERTY_SENTINEL];
+      }
       const { data, error } = await supabase
         .from("scoped_admin_properties")
         .select("property_id")
@@ -178,7 +187,7 @@ function useAuthState() {
     () => resolveScopedPropertyIds(scopeEmail, scopeRows),
     [scopeEmail, scopeRows],
   );
-  const isScopedAdmin = scopedPropertyIds.length > 0;
+  const isScopedAdmin = scopedPropertyIds.length > 0 || isRepAdmin;
   // Roles come from a separate request. Until they are known, isAdmin is false
   // and we must not treat the account as unrestricted — that flash-loads every
   // property onto Onboarding / Pulse.
@@ -186,8 +195,8 @@ function useAuthState() {
   const scopeResolved = !userId || (rolesKnown && (!isAdmin || !scopePending));
 
   const userRole: UserRole = useMemo(
-    () => computeUserRole(isDev, isFearlessLeader, isAdmin, isSalesRep),
-    [isDev, isFearlessLeader, isAdmin, isSalesRep],
+    () => computeUserRole(isDev, isFearlessLeader, isPlatformAdmin, isSalesRep),
+    [isDev, isFearlessLeader, isPlatformAdmin, isSalesRep],
   );
 
 

@@ -28,3 +28,14 @@ describe("scoped admin", () => {
     expect(filterToAdminScope(rows, [])).toEqual(rows);
   });
 });
+
+describe("sales rep scope", () => {
+  it("a rep with no assigned properties sees nothing, not everything", async () => {
+    const { REP_NO_PROPERTY_SENTINEL } = await import("./adminScope");
+    const rows = [{ id: "a" }, { id: "b" }];
+    expect(filterToAdminScope(rows, [REP_NO_PROPERTY_SENTINEL])).toEqual([]);
+  });
+  it("a rep sees only assigned properties", () => {
+    expect(filterToAdminScope([{ id: "a" }, { id: "b" }], ["b"]).map((r) => r.id)).toEqual(["b"]);
+  });
+});
