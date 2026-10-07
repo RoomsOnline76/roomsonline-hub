@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, ArrowLeft, UserPlus, Pencil, Trash2 } from "lucide-react";
-import { useSalesReps, SalesRep } from "@/hooks/useSalesReps";
+import { useSalesReps, useRepLinkedProperties, SalesRep } from "@/hooks/useSalesReps";
 import { useAuth } from "@/hooks/useAuth";
 import { RepBankingForm } from "@/components/sales-reps/RepBankingForm";
 import { fetchRepGlobals, resolveRepTerms, RepTierKey } from "@/lib/repContractVariables";
@@ -179,6 +179,7 @@ export default function AdminSalesReps() {
   const navigate = useNavigate();
   const { isDev, isFearlessLeader, isAdmin, loading: authLoading } = useAuth();
   const { reps, isLoading, create, update, remove } = useSalesReps();
+  const linkedProperties = useRepLinkedProperties();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRep, setEditingRep] = useState<SalesRep | undefined>();
   const [repGlobals, setRepGlobals] = useState<Record<string, any> | null>(null);
