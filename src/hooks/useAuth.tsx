@@ -3,7 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, computeUserRole } from "@/lib/permissions";
-import { resolveScopedPropertyIds } from "@/lib/adminScope";
+import { REP_NO_PROPERTY_SENTINEL, resolveScopedPropertyIds } from "@/lib/adminScope";
 
 interface Profile {
   id: string;
@@ -195,8 +195,8 @@ function useAuthState() {
   const scopeResolved = !userId || (rolesKnown && (!isAdmin || !scopePending));
 
   const userRole: UserRole = useMemo(
-    () => computeUserRole(isDev, isFearlessLeader, isAdmin, isSalesRep),
-    [isDev, isFearlessLeader, isAdmin, isSalesRep],
+    () => computeUserRole(isDev, isFearlessLeader, isPlatformAdmin, isSalesRep),
+    [isDev, isFearlessLeader, isPlatformAdmin, isSalesRep],
   );
 
 

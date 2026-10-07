@@ -106,3 +106,9 @@ export function filterToAdminScope<T extends { id?: string | null; property_id?:
     return typeof value === "string" && scopedPropertyIds.includes(value);
   });
 }
+
+/**
+ * Placeholder scope for a sales rep with no assigned properties, so the
+ * account stays scoped (sees nothing) instead of falling back to unrestricted.
+ */
+export const REP_NO_PROPERTY_SENTINEL = "00000000-0000-0000-0000-000000000000";
