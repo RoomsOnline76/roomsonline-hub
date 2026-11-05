@@ -14,10 +14,10 @@ const fadeUp = {
 };
 
 const STATS = [
-  { value: "R 0", label: "First 60 Days" },
-  { value: "No", label: "Setup Fee in Your 60 Days" },
-  { value: "24/7", label: "TOBI Assistant" },
-  { value: "Flexible", label: "Negotiable Plans" },
+  { value: "7 days", label: "To a working Book button" },
+  { value: "R 0", label: "Subscription for 60 days" },
+  { value: "2%", label: "Booking fee — only when you get a booking" },
+  { value: "No", label: "Lock-in — export your data anytime" },
 ];
 
 const PAIN_POINTS = [
@@ -38,16 +38,20 @@ const SOLUTIONS = [
   { icon: CreditCard, text: "Guest folios & invoicing in one click" },
 ];
 
-const COMPARISON = [
-  { feature: "Rooms & Reservations", rolos: true, others: true, othersNote: "" },
-  { feature: "Channel Manager (OTAs)", rolos: true, others: false, othersNote: "R 2,000+/mo extra" },
-  { feature: "TOBI Assistant", rolos: true, others: false, othersNote: "Not available" },
-  { feature: "REST API (50+ actions)", rolos: true, others: false, othersNote: "R 1,500+/mo extra" },
-  { feature: "WordPress Plugin", rolos: true, others: false, othersNote: "Not available" },
-  { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
-  { feature: "Revenue Management", rolos: true, others: true, othersNote: "Limited" },
-  { feature: "Night Audit Automation", rolos: true, others: false, othersNote: "Manual process" },
-  { feature: "No Subscription for Your First 60 Days", rolos: true, others: false, othersNote: "Fixed monthly tiers from day one" },
+const FIT_CHECKS = [
+  { title: "You handle or oversee bookings yourself", desc: "You keep control of your guests and your calendar — no agency in between." },
+  { title: "WhatsApp, email and enquiry forms bring in bookings", desc: "Guests see live availability and book straight away, instead of waiting for your reply." },
+  { title: "Your website runs on WordPress, or you can change it", desc: "We add a Book button to your existing site — no rebuild, no management company sign-off." },
+  { title: "You've missed enquiries or had double-bookings", desc: "One live calendar ends clashes and catches the after-hours guest." },
+  { title: "You're not sure what your occupancy really is", desc: "See tonight, next month and last year at a glance." },
+];
+
+const LAUNCH_PLAN = [
+  { day: "Day 1", title: "15-minute call", desc: "Send us your rooms, rates and photos." },
+  { day: "Day 3", title: "We set up your availability", desc: "Rooms, seasons and calendar configured in ROL'OS." },
+  { day: "Day 5", title: "Book button on your website", desc: "We install it on your site and test a live booking." },
+  { day: "Day 7", title: "Training & go live", desc: "A walkthrough for you and your team. You're taking direct bookings." },
+  { day: "To day 60", title: "Free", desc: "No subscription. You pay only the 2% booking fee on bookings we deliver." },
 ];
 
 const TRUST_LOGOS = ["Hostfully", "Benson", "Rentals United", "WordPress", "Elementor"];
@@ -71,7 +75,7 @@ export default function ConnectHome() {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
               <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-6">
-                60 days free — then a subscription plus the add-ons you keep
+                Setup, training and your first 60 days on us
               </span>
             </motion.div>
 
@@ -81,8 +85,8 @@ export default function ConnectHome() {
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]"
               style={{ textWrap: "balance" } as React.CSSProperties}
             >
-              Running Your Property on Spreadsheets?{" "}
-              <span className="text-primary">There's a Better Way.</span>
+              A working Book button on your website{" "}
+              <span className="text-primary">within seven days.</span>
             </motion.h1>
 
             <motion.p
@@ -91,8 +95,8 @@ export default function ConnectHome() {
               className="mt-5 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
               style={{ textWrap: "pretty" } as React.CSSProperties}
             >
-              ROL'OS gives you enterprise-grade property management at a fraction of enterprise cost.
-              No PMS experience needed. No technical setup. Just sign up and start managing.
+              We set up your availability, put the Book button on your site and train you.
+              Your first 60 days are free — you pay only a 2% fee on bookings we deliver.
             </motion.p>
 
             <motion.div
@@ -102,12 +106,12 @@ export default function ConnectHome() {
             >
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2 font-medium px-6 w-full sm:w-auto">
-                  Get Started Free <ArrowRight className="h-4 w-4" />
+                  Book my 7-day setup <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to={connectPath("/connect/features")} className="w-full sm:w-auto">
+              <Link to={connectPath("/connect/pricing")} className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="gap-2 font-medium px-6 w-full sm:w-auto">
-                  See ROL'OS in Action
+                  See pricing
                 </Button>
               </Link>
             </motion.div>
@@ -241,57 +245,44 @@ export default function ConnectHome() {
         </div>
       </section>
 
-      {/* ─── More Than You Expect — Comparison ───────────────── */}
+      {/* ─── Is this for you + 7-day plan ───────────────────── */}
       <section className="py-12 sm:py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={fadeUp}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-8 sm:mb-12"
-          >
-            <h2 className="text-2xl sm:text-3xl font-bold">More Than You Expect</h2>
-            <p className="text-muted-foreground mt-3 max-w-xl mx-auto text-sm sm:text-base">
-              Features that other PMS providers charge extra for? We include them in every plan.
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-8 lg:gap-12">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+            <h2 className="text-2xl sm:text-3xl font-bold">Is this for you?</h2>
+            <p className="text-muted-foreground mt-2 text-sm sm:text-base">You're in the right place if…</p>
+            <ul className="mt-6 space-y-4">
+              {FIT_CHECKS.map((f) => (
+                <li key={f.title} className="flex gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-sm sm:text-base">{f.title}</p>
+                    <p className="text-sm text-muted-foreground">{f.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-xs text-muted-foreground">
+              Already happy with a working NightsBridge or similar setup? Keep it — we'd rather tell you that than sell you a switch.
             </p>
           </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.1 }}
-            variants={fadeUp}
-            transition={{ duration: 0.5 }}
-            className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
-          >
-            <table className="w-full text-sm min-w-[520px]">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-semibold">Feature</th>
-                  <th className="py-3 px-4 font-semibold text-primary text-center">ROL'OS</th>
-                  <th className="py-3 px-4 font-semibold text-muted-foreground text-center">Typical PMS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON.map((row) => (
-                  <tr key={row.feature} className="border-b last:border-0">
-                    <td className="py-3 px-4">{row.feature}</td>
-                    <td className="py-3 px-4 text-center">
-                      <Check className="h-4 w-4 text-primary mx-auto" />
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {row.others ? (
-                        <Check className="h-4 w-4 text-muted-foreground mx-auto" />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{row.othersNote}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="rounded-2xl border bg-card p-6 sm:p-8">
+            <h2 className="text-2xl sm:text-3xl font-bold">Your 7-day launch plan</h2>
+            <p className="text-muted-foreground mt-2 text-sm">We do the setup. You approve it.</p>
+            <ol className="mt-6 space-y-5">
+              {LAUNCH_PLAN.map((s) => (
+                <li key={s.day} className="flex gap-4">
+                  <span className="w-16 shrink-0 text-xs font-semibold uppercase tracking-wide text-primary pt-0.5">{s.day}</span>
+                  <div>
+                    <p className="font-medium text-sm">{s.title}</p>
+                    <p className="text-sm text-muted-foreground">{s.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <Link to={connectPath("/connect/get-started")} className="inline-block mt-7">
+              <Button className="gap-2">Book my 7-day setup <ArrowRight className="h-4 w-4" /></Button>
+            </Link>
           </motion.div>
         </div>
       </section>
@@ -332,7 +323,7 @@ export default function ConnectHome() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
                 <Button size="lg" className="gap-2 font-medium w-full sm:w-auto">
-                  Get Started Free <ArrowRight className="h-4 w-4" />
+                  Book my 7-day setup <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
 

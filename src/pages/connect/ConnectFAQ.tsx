@@ -194,7 +194,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "What is the booking fee?",
-        a: "It is competitive and surprisingly low, agreed per property and negotiable for volume and portfolios. We put it in writing before you go live — talk to us via the Get Started page.",
+        a: "The standard booking fee is 2% of bookings taken through ROL'OS — no booking, no fee. Volume and portfolio rates are negotiable. We put it in writing before you go live — talk to us via the Get Started page.",
       },
       {
         q: "Do I pay extra for White Label, Revenue Management or the Channel Manager?",

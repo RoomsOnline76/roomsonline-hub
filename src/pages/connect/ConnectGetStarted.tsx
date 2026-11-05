@@ -16,10 +16,10 @@ const fadeUp = {
 };
 
 const PROCESS_STEPS = [
-  { step: "1", title: "Discovery Call", desc: "15 minutes to understand your property and needs." },
-  { step: "2", title: "API Credentials", desc: "Get your property ID and API key within 24 hours." },
-  { step: "3", title: "Integration Support", desc: "Our team helps you get set up and running." },
-  { step: "4", title: "Go Live", desc: "Launch your integration with full support." },
+  { step: "1", title: "15-minute call", desc: "We look at your website and how you take bookings today." },
+  { step: "2", title: "We set up your availability", desc: "Rooms, rates and seasons — done for you." },
+  { step: "3", title: "Book button on your site", desc: "Installed and tested on your website within seven days." },
+  { step: "4", title: "Training & 60 days free", desc: "We train you, then you pay only the 2% booking fee until day 61." },
 ];
 
 export default function ConnectGetStarted() {
@@ -67,7 +67,7 @@ export default function ConnectGetStarted() {
           <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-4" />
           <h1 className="text-2xl font-bold mb-2">Thank You!</h1>
           <p className="text-muted-foreground mb-6">
-            We've received your inquiry and will be in touch within 24 hours with your API credentials and onboarding details.
+            We've received your inquiry and will be in touch within 24 hours to book your 15-minute setup call.
           </p>
           <div className="flex items-center justify-center gap-3">
             <Link to={connectPath("/connect/docs/quickstart")}><Button variant="outline">Read the Quickstart</Button></Link>
@@ -87,7 +87,7 @@ export default function ConnectGetStarted() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
-            Get Started with ROL'OS
+            Get your Book button live in 7 days
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
@@ -95,7 +95,7 @@ export default function ConnectGetStarted() {
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             Free for your first 60 days — the full ROL'OS stack, no subscription, and the setup fee waived when you start in that period.
-            In that period you pay only the booking fee on bookings taken through ROL'OS, plus card
+            In that period you pay only the 2% booking fee on bookings taken through ROL'OS, plus card
             processing on our payment-processing schedule if you use our gateway. From day 61 the PMS
             subscription and any add-ons you keep — channel manager, white label, branding, revenue
             management — are billed as set out in your agreement.
@@ -149,24 +149,24 @@ export default function ConnectGetStarted() {
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="company">Company / Property Name</Label>
+                    <Label htmlFor="company">Property name & town</Label>
                     <Input id="company" value={form.company} onChange={(e) => setForm(f => ({ ...f, company: e.target.value }))} className="mt-1" />
                   </div>
                   <div>
-                    <Label htmlFor="count">Number of Properties</Label>
-                    <Input id="count" value={form.property_count} onChange={(e) => setForm(f => ({ ...f, property_count: e.target.value }))} placeholder="e.g. 1, 3, 10+" className="mt-1" />
+                    <Label htmlFor="count">Website address</Label>
+                    <Input id="count" value={form.property_count} onChange={(e) => setForm(f => ({ ...f, property_count: e.target.value }))} placeholder="e.g. www.myguesthouse.co.za" className="mt-1" />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="pms">Current PMS (if any)</Label>
-                  <Input id="pms" value={form.current_pms} onChange={(e) => setForm(f => ({ ...f, current_pms: e.target.value }))} placeholder="e.g. Hostfully, Benson, Rentals United, None — I'm just getting started" className="mt-1" />
+                  <Label htmlFor="pms">How do you take bookings today?</Label>
+                  <Input id="pms" value={form.current_pms} onChange={(e) => setForm(f => ({ ...f, current_pms: e.target.value }))} placeholder="e.g. WhatsApp and email, a paper diary, NightsBridge" className="mt-1" />
                 </div>
                 <div>
-                  <Label htmlFor="message">Tell us about your integration needs</Label>
+                  <Label htmlFor="message">Anything we should know? (WhatsApp number welcome)</Label>
                   <Textarea id="message" value={form.message} onChange={(e) => setForm(f => ({ ...f, message: e.target.value }))} rows={4} className="mt-1" />
                 </div>
                 <Button type="submit" size="lg" disabled={submitting} className="w-full gap-2">
-                  {submitting ? "Submitting..." : "Get Started Free"} <Send className="h-4 w-4" />
+                  {submitting ? "Submitting..." : "Book my 7-day setup"} <Send className="h-4 w-4" />
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
                   No credit card required. Every property is different — we'll build a plan that fits your budget.
