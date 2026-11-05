@@ -1143,7 +1143,21 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (error) throw error;
-      return property !== null;
+      if (property !== null) return true;
+
+      // Not publicly listed: allow signed-in staff/owners/admins who can
+      // access this property (admin calendar, manual bookings, onboarding).
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      if (!token || token === serviceKey) return false;
+      const { data: userData } = await supabase.auth.getUser(token);
+      const userId = userData?.user?.id;
+      if (!userId) return false;
+      const { data: allowed } = await supabase.rpc("can_access_property", {
+        _property_id: propertyId,
+        _user_id: userId,
+      });
+      return allowed === true;
     };
 
     // ── validate_voucher ─────────────────────────────────────────────
