@@ -24,14 +24,14 @@ const fadeUp = {
 const FEE_APPLIES_TO = [
   "Bookings delivered through ROL OTA and channel listings",
   "Bookings taken through the widget, embed or WordPress booking engine",
-  "Agreed per property and negotiable for volume and portfolios",
+  "No booking, no fee. Compare that with 15–20% on the big booking sites",
 ];
 
 const FREE_POINTS = [
   "Full ROL'OS PMS and every add-on switched on for 60 days",
   "No subscription and no per-room charge in that period — setup fee waived when you start in your 60 days",
   "Onboarding, setup, training and support at no charge",
-  "You pay only the booking fee on bookings taken through ROL'OS",
+  "You pay only the 2% booking fee on bookings taken through ROL'OS",
 ];
 
 /** What starts being charged once the free period ends. */
@@ -210,7 +210,7 @@ export default function ConnectPricing() {
                   What you pay during the free period
                 </h3>
                 <p className="mt-2 text-xl font-bold">
-                  A booking fee — <span className="text-primary">competitive and surprisingly low</span>
+                  A 2% booking fee — <span className="text-primary">only when a booking comes through</span>
                 </p>
                 <ul className="mt-4 space-y-2.5">
                   {FEE_APPLIES_TO.map((f) => (
@@ -233,8 +233,8 @@ export default function ConnectPricing() {
                 </div>
 
                 <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-                  The booking fee is agreed per property and negotiable for volume and portfolios.
-                  We put it in writing before you go live.
+                  2% is our standard rate. Volume and portfolio rates are negotiable, and your exact day-61
+                  schedule is put in writing before you go live — no surprises.
                 </p>
               </div>
             </div>
