@@ -93,6 +93,7 @@ import {
   type ChannelKeyMode,
   type OwnerAccountPlan,
   type TaskOutcome,
+  fetchOnboardGate,
 } from "@/lib/channelOnboardOrchestrator";
 
 
@@ -197,6 +198,8 @@ interface OnboardOption {
   /** Portfolio entries only: the portfolio and every eligible member it covers. */
   portfolioId?: string;
   memberIds?: string[];
+  /** Portfolio entries: member property id → display name. */
+  memberLabels?: Record<string, string>;
   /** Undefined until the status read lands — the row then renders without a badge. */
   status?: OnboardStatus;
   /** Portfolio entries: how many members are pushed to the channel manager. */
@@ -676,6 +679,9 @@ export function ChannelOnboardTab({
               memberCount: sorted.length,
               portfolioId: pid,
               memberIds: sorted,
+              memberLabels: Object.fromEntries(
+                sorted.map((id) => [id, options.find((o) => o.id === id)?.label ?? "a portfolio property"]),
+              ),
             });
           }
           options = [
@@ -958,6 +964,38 @@ export function ChannelOnboardTab({
           }
           setAccountDialogOpen(true);
         }
+        // A portfolio entry is anchored to one member, but every member must reach the
+        // channel. Once the anchor publishes, walk the remaining members one at a time
+        // (the channel rate-limits per minute): adopt the inherited portfolio account
+        // (Step A never creates a new one here) and then publish (Step B).
+        const otherMembers = (selectedOption?.memberIds ?? []).filter((id) => id !== propertyId);
+        if (result.passed && step === "b" && otherMembers.length > 0) {
+          const labelOf = (id: string) => selectedOption?.memberLabels?.[id] ?? "a portfolio property";
+          const failures: string[] = [];
+          for (const [index, memberId] of otherMembers.entries()) {
+            toast.info(`Publishing ${labelOf(memberId)} (${index + 2} of ${otherMembers.length + 1})…`);
+            try {
+              const memberGate = await fetchOnboardGate(memberId);
+              if (memberGate.steps.monitor_step_a?.status !== "passed") {
+                const a = await runOnboardStep("a", { propertyId: memberId, keyMode });
+                if (!a.passed) {
+                  failures.push(`${labelOf(memberId)}: ${a.summary || "account step did not complete"}`);
+                  continue;
+                }
+              }
+              const b = await runOnboardStep("b", { propertyId: memberId, fullRerun: options?.fullRerun === true });
+              if (!b.passed) failures.push(`${labelOf(memberId)}: ${b.summary || (b.pending ? "waiting on the channel" : "publish did not complete")}`);
+            } catch (memberErr) {
+              failures.push(`${labelOf(memberId)}: ${memberErr instanceof Error ? memberErr.message : "could not be published"}`);
+            }
+          }
+          if (failures.length > 0) {
+            toast.error(`${failures.length} of ${otherMembers.length + 1} portfolio properties were not published`, {
+              description: failures.join(" · "),
+              duration: 20000,
+            });
+          }
+        }
         if (result.passed) {
           toast.success(
             step === "a"
@@ -1029,7 +1067,7 @@ export function ChannelOnboardTab({
         if (continueToPublish) void runStep("b");
       }
     },
-    [chosenLoginEmail, gate, keyMode, plan, propertyId],
+    [chosenLoginEmail, gate, keyMode, plan, propertyId, selectedOption],
   );
 
   /**

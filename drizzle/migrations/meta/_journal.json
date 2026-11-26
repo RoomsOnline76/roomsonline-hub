@@ -36,6 +36,13 @@
       "when": 1791381065788,
       "tag": "0004_sales_rep_core_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795695185447,
+      "tag": "0005_itineraries_drop_header_session_check",
+      "breakpoints": true
     }
   ]
 }
