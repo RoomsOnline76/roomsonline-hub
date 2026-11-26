@@ -2,6 +2,7 @@
 // OZOW GATEWAY v1.0 — Ozow Payment API (redirect-based, EFT)
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,9 +23,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "ozow", transaction_ref);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "ozow", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     const { data: credData } = await supabase
       .from("integration_configs").select("config")
-      .eq("property_id", property_id).eq("integration_type", "payment_credentials").maybeSingle();
+      .eq("property_id", credPropertyId).eq("integration_type", "payment_credentials").maybeSingle();
     const creds = (credData?.config as Record<string, string>) || {};
     const siteCode = creds.site_code;
     const privateKey = creds.private_key;
@@ -38,8 +59,8 @@ Deno.serve(async (req) => {
     switch (action) {
       case "initiate_payment": {
         // Generate SHA512 hash for Ozow
-        const transRef = booking_id || `ROL-${Date.now()}`;
-        const hashInput = `${siteCode}ZA${currency.toUpperCase()}${amount.toFixed(2)}${transRef}${return_url}${cancel_url || return_url}${cancel_url || return_url}false${privateKey}`;
+        const transRef = checkout!.id;
+        const hashInput = `${siteCode}ZA${currency.toUpperCase()}${amount.toFixed(2)}${transRef}${safeReturnUrl}${safeCancelUrl}${safeCancelUrl}false${privateKey}`;
         const encoder = new TextEncoder();
         const hashBuffer = await crypto.subtle.digest("SHA-512", encoder.encode(hashInput.toLowerCase()));
         const hashCheck = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -51,17 +72,17 @@ Deno.serve(async (req) => {
           Amount: amount.toFixed(2),
           TransactionReference: transRef,
           BankReference: transRef.substring(0, 20),
-          Optional1: booking_id || "",
-          Optional2: property_id || "",
+          Optional1: checkout!.id,
+          Optional2: checkout!.property_id,
           IsTest: "false",
-          SuccessUrl: return_url,
-          CancelUrl: cancel_url || return_url,
-          ErrorUrl: cancel_url || return_url,
+          SuccessUrl: safeReturnUrl,
+          CancelUrl: safeCancelUrl,
+          ErrorUrl: safeCancelUrl,
           HashCheck: hashCheck,
         };
 
         // Ozow expects a POST redirect, so we return the URL and form params
-        await supabase.from("payment_transactions").insert({ booking_id, property_id, amount, currency: currency.toUpperCase(), payment_provider: "ozow", payment_reference: transRef, status: "pending" });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "ozow", transactionRef: transRef });
 
         return new Response(JSON.stringify({
           success: true, gateway: "ozow", payment_method: "redirect",
@@ -83,8 +104,7 @@ Deno.serve(async (req) => {
         const isComplete = data?.[0]?.status === "Complete";
 
         if (isComplete) {
-          await supabase.from("payment_transactions").update({ status: "completed" }).eq("payment_reference", ref);
-          if (booking_id) await supabase.from("bookings").update({ payment_status: "paid", payment_reference: ref, paid_at: new Date().toISOString() }).eq("id", booking_id);
+          await settleStoredTransaction(supabase, storedTxn!, Number(data?.[0]?.amount) || 0, ref);
         }
 
         return new Response(JSON.stringify({ success: true, gateway: "ozow", payment_method: "redirect", transaction_ref: ref, amount: data?.[0]?.amount || 0, currency: "ZAR", status: isComplete ? "completed" : "pending" }),

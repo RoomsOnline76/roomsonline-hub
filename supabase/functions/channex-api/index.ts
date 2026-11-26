@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 // ============================================================================
 // CHANNEX.IO API ADAPTER
 // Channel manager and PMS connectivity platform
@@ -347,6 +348,11 @@ async function getReservationsFeed(creds: ChannexCredentials): Promise<any> {
 // ============================================================================
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders);
+    if (denied) return denied;
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

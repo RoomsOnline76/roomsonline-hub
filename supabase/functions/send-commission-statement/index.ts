@@ -12,6 +12,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 import { z } from "npm:zod@3.23.8";
 
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -74,7 +75,14 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Approve the statement before emailing it" }, 409);
     }
 
-    const recipient = parsed.data.to || statement.sales_reps?.email;
+    // Statements go to the partner on file, or to a team mailbox — never an arbitrary address.
+    const repEmail = (statement.sales_reps?.email || "").trim().toLowerCase();
+    const requestedTo = (parsed.data.to || "").trim().toLowerCase();
+    const teamMailbox = /^[^@\s]+@(roomsonline\.co\.za|rolos\.co\.za)$/.test(requestedTo);
+    if (requestedTo && requestedTo !== repEmail && !teamMailbox) {
+      return json({ success: false, error: "Statements can only be sent to the partner's email on file or a team mailbox" }, 403);
+    }
+    const recipient = requestedTo || repEmail;
     if (!recipient) return json({ success: false, error: "No email address on file for this partner" }, 400);
 
     const { data: lines } = await supabase

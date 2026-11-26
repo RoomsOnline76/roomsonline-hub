@@ -3,6 +3,7 @@ import { findDiningExperience } from "../_shared/delight-engine.ts";
 import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 import { fetchQualifyingPartnerOffers, renderPartnerOffersHTML } from "../_shared/partner-offers.ts";
 
+import { getCaller, isPlatformAdmin } from "../_shared/authGuard.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -1868,7 +1869,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { itinerary_id } = await req.json();
+    const { itinerary_id, session_id: requestSessionId } = await req.json();
 
     if (!itinerary_id) {
       return new Response(
@@ -1889,6 +1890,23 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Itinerary not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Only the traveller who owns this journey (their account, or the browser
+    // session that created it), or our team, may build its brochure.
+    {
+      const caller = await getCaller(req);
+      const sessionId = typeof requestSessionId === "string" ? requestSessionId : null;
+      let allowed = false;
+      if (caller && caller.kind !== "user") allowed = true;
+      else if (caller?.kind === "user" && (itinerary.user_id === caller.userId || await isPlatformAdmin(caller.userId))) allowed = true;
+      else if (sessionId && itinerary.session_id && sessionId === itinerary.session_id) allowed = true;
+      if (!allowed) {
+        return new Response(
+          JSON.stringify({ error: "Itinerary not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Parse stays - handle both snake_case and camelCase field names

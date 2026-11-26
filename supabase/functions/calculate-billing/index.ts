@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireAdminOrInternal, authErrorResponse } from "../_shared/authGuard.ts";
 import {
   getEffectiveBillingRate,
   loadGatewaySchedule,
@@ -26,6 +27,16 @@ interface BillingResult {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    // Internal callers (service role / scheduled job) or platform admins only.
+    try {
+      await requireAdminOrInternal(req);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
+    }
+  }
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

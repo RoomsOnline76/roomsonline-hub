@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { canAccessProperty } from "../_shared/authGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -526,6 +527,39 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action } = body;
+
+    // Every user action is scoped to one property the caller manages. All ids in
+    // the request (property, folio, payment, booking) must resolve to that property.
+    if (!isServiceCall) {
+      if (action === "payment_webhook") {
+        return new Response(JSON.stringify({ error: "Not allowed" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const scopeProps = new Set<string>();
+      if (typeof body.property_id === "string" && body.property_id) scopeProps.add(body.property_id);
+      const lookups: Array<[string, string, unknown]> = [
+        ["rolos_folios", "folio_id", body.folio_id],
+        ["rolos_payments", "payment_id", body.payment_id],
+        ["bookings", "booking_id", body.booking_id],
+      ];
+      for (const [table, , id] of lookups) {
+        if (typeof id !== "string" || !id) continue;
+        const { data: row } = await supabase.from(table).select("property_id").eq("id", id).maybeSingle();
+        if (!row?.property_id) {
+          return new Response(JSON.stringify({ error: "Not found" }), {
+            status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        scopeProps.add(row.property_id as string);
+      }
+      const [scopeProp] = [...scopeProps];
+      if (scopeProps.size !== 1 || !(await canAccessProperty(user!.id, scopeProp))) {
+        return new Response(JSON.stringify({ error: "Not allowed" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     switch (action) {
       // ==================== RECORD PAYMENT ====================

@@ -3,6 +3,7 @@ import { createSuccessResponse, createErrorResponse } from '../_shared/adapter-c
 import { resolveExperienceConfig, callPmsAdapterWithLiveCheck } from '../_shared/experience-helpers.ts';
 import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -20,6 +21,11 @@ const VALID_EXPERIENCE_TYPES = [
 type ExperienceType = typeof VALID_EXPERIENCE_TYPES[number];
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders, { only: (b) => ["agent_command", "guest_email", "brand_kit"].includes(String(b.experience_type)) });
+    if (denied) return denied;
+  }
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

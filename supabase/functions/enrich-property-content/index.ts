@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { AI_MODELS, describeAiFailure, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -15,6 +16,11 @@ const EDITORIAL_FIELDS = [
 ];
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders);
+    if (denied) return denied;
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

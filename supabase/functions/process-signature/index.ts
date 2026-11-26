@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 
+import { escapeHtml } from "../_shared/authGuard.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -202,6 +203,19 @@ Deno.serve(async (req) => {
     const userAgent = req.headers.get("user-agent") || "unknown";
 
     // Store signature image
+    // Signature images are small drawings: PNG/JPEG data URLs up to ~300 KB only.
+    if (typeof signature_data_url !== "string" || !/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(signature_data_url) || signature_data_url.length > 400_000) {
+      return new Response(JSON.stringify({ error: "Signature image is invalid or too large" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (String(signee_name).length > 200 || String(signee_email).length > 254) {
+      return new Response(JSON.stringify({ error: "Name or email is too long" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const signatureFileName = `${contract_id}-signature.png`;
     const base64Data = signature_data_url.replace(/^data:image\/\w+;base64,/, "");
     const signatureBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
@@ -458,7 +472,7 @@ Deno.serve(async (req) => {
       <div style="font-size: 48px; color: #22c55e;">✓</div>
       <h1 style="color: #333; margin: 10px 0;">Contract Signed Successfully</h1>
     </div>
-    <p style="color: #333;">Dear ${signee_name},</p>
+    <p style="color: #333;">Dear ${escapeHtml(signee_name)},</p>
     <p style="color: #333;">Thank you for signing the RoomsOnline partnership agreement${propertiesCount > 1 ? ` covering ${propertiesCount} properties` : ''} (${propertiesText}).</p>
     ${isNewOwner ? `
     <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 16px; margin: 20px 0;">
@@ -477,7 +491,7 @@ Deno.serve(async (req) => {
 
       const signeeAddr = (signee_email || "").trim().toLowerCase();
       const ownerAddr = String(contract.owner_email ?? "").trim().toLowerCase();
-      const auditBlock = `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`;
+      const auditBlock = `<p style="color: #666; font-size: 12px;">Signed by: ${escapeHtml(signee_name)} (${escapeHtml(signee_email)}) from IP: ${escapeHtml(clientIp)}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`;
 
       // One mailbox must never receive the same signature twice. Internal signers
       // (roomsonline.co.za addresses, including aliases that land in the team inbox)
@@ -494,7 +508,7 @@ Deno.serve(async (req) => {
         await resend.emails.send({
           from: "RoomsOnline <hello@notify.roomsonline.co.za>",
           to: [signeeAddr, ...teamRecipients].filter(Boolean),
-          subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
+          subject: `[Contract Signed] ${propertiesText} - ${String(signee_name).replace(/[\r\n<>]/g, ' ').slice(0, 80)}${isNewOwner ? ' (NEW OWNER)' : ''}`,
           html: emailHtml + auditBlock,
         });
       } else {
@@ -509,7 +523,7 @@ Deno.serve(async (req) => {
           await resend.emails.send({
             from: "RoomsOnline <hello@notify.roomsonline.co.za>",
             to: teamRecipients,
-            subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
+            subject: `[Contract Signed] ${propertiesText} - ${String(signee_name).replace(/[\r\n<>]/g, ' ').slice(0, 80)}${isNewOwner ? ' (NEW OWNER)' : ''}`,
             html: emailHtml.replace("Dear " + signee_name, "Dear Team") + auditBlock,
           });
         }
@@ -552,7 +566,7 @@ Deno.serve(async (req) => {
       <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
       <h1 style="color: #333; margin: 10px 0;">Welcome to RoomsOnline!</h1>
     </div>
-    <p style="color: #333;">Dear ${signee_name},</p>
+    <p style="color: #333;">Dear ${escapeHtml(signee_name)},</p>
     <p style="color: #333;">Your account has been created and your property "${createdPropertyName}" is now registered with RoomsOnline.</p>
     <p style="color: #333;">To complete your setup, please create a password for your account:</p>
     <div style="text-align: center; margin: 30px 0;">

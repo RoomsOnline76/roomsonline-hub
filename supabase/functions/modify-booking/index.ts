@@ -18,6 +18,7 @@ import { loadStayDiscounts } from "../_shared/loadStayDiscounts.ts";
 import type { DiscountLine } from "../_shared/stayDiscounts.ts";
 import { countedGuests, resolveBookingCapacity } from "../_shared/bookingCapacity.ts";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 import {
   logRateParity,
   type ParityRow,
@@ -377,6 +378,11 @@ async function updateAvailabilityBlockout(
 }
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders);
+    if (denied) return denied;
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

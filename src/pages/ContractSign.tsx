@@ -615,6 +615,7 @@ export default function ContractSign() {
       const { data, error } = await supabase.functions.invoke("email-contract-copy", {
         body: {
           contract_id: contract.id,
+          signing_token: token,
           email: emailForReview,
           property_name: contract.property?.name || "Your Property",
           signing_url: signingUrl,

@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,11 +43,31 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "stripe", transaction_ref || body.session_id);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "stripe", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     // Fetch per-property Stripe credentials
     const { data: credData } = await supabase
       .from("integration_configs")
       .select("config")
-      .eq("property_id", property_id)
+      .eq("property_id", credPropertyId)
       .eq("integration_type", "payment_credentials")
       .maybeSingle();
 
@@ -81,20 +102,16 @@ Deno.serve(async (req) => {
           "line_items[0][price_data][unit_amount]": String(amountInCents),
           "line_items[0][price_data][product_data][name]": itemName,
           "mode": "payment",
-          "success_url": `${return_url}?session_id={CHECKOUT_SESSION_ID}`,
-          "cancel_url": cancel_url || return_url,
+          "success_url": `${safeReturnUrl}${safeReturnUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
+          "cancel_url": safeCancelUrl,
         };
 
         if (guest_email) {
           params["customer_email"] = guest_email;
         }
 
-        if (booking_id) {
-          params["metadata[booking_id]"] = booking_id;
-        }
-        if (property_id) {
-          params["metadata[property_id]"] = property_id;
-        }
+        params["metadata[booking_id]"] = checkout!.id;
+        params["metadata[property_id]"] = checkout!.property_id;
 
         const session = await stripeRequest("/checkout/sessions", secretKey!, params);
 
@@ -107,18 +124,7 @@ Deno.serve(async (req) => {
         }
 
         // Log transaction
-        await supabase.from("payment_transactions").insert({
-          booking_id,
-          property_id,
-          amount,
-          currency: currency.toUpperCase(),
-          payment_provider: "stripe",
-          payment_reference: session.id,
-          status: "pending",
-          metadata: { stripe_session_id: session.id },
-        }).then(({ error }) => {
-          if (error) console.error("[StripeGateway] Transaction log error:", error);
-        });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "stripe", transactionRef: session.id });
 
         return new Response(JSON.stringify({
           success: true,
@@ -145,17 +151,8 @@ Deno.serve(async (req) => {
         const isPaid = session.payment_status === "paid";
 
         // Update transaction record
-        if (isPaid) {
-          await supabase.from("payment_transactions")
-            .update({ status: "completed", metadata: { stripe_session: session } })
-            .eq("payment_reference", sessionId);
-
-          // Update booking payment status
-          if (session.metadata?.booking_id) {
-            await supabase.from("bookings")
-              .update({ payment_status: "paid", payment_reference: session.payment_intent, paid_at: new Date().toISOString() })
-              .eq("id", session.metadata.booking_id);
-          }
+        if (isPaid && session.metadata?.booking_id === storedTxn!.booking_id) {
+          await settleStoredTransaction(supabase, storedTxn!, (session.amount_total || 0) / 100, session.payment_intent || sessionId);
         }
 
         return new Response(JSON.stringify({

@@ -2,6 +2,7 @@
 // PEACH PAYMENTS GATEWAY v1.0 — Peach Payments Checkout API (redirect-based)
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,9 +23,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "peach", transaction_ref);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "peach", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     const { data: credData } = await supabase
       .from("integration_configs").select("config")
-      .eq("property_id", property_id).eq("integration_type", "payment_credentials").maybeSingle();
+      .eq("property_id", credPropertyId).eq("integration_type", "payment_credentials").maybeSingle();
     const creds = (credData?.config as Record<string, string>) || {};
     const accessToken = creds.access_token;
     const entityId = creds.entity_id;
@@ -41,10 +62,10 @@ Deno.serve(async (req) => {
           "amount": amount.toFixed(2),
           "currency": currency.toUpperCase(),
           "paymentType": "DB",
-          "shopperResultUrl": return_url,
+          "shopperResultUrl": safeReturnUrl,
         });
         if (guest_email) params.set("customer.email", guest_email);
-        if (booking_id) params.set("merchantTransactionId", booking_id);
+        params.set("merchantTransactionId", checkout!.id);
 
         const res = await fetch(`${PEACH_API}/checkouts`, {
           method: "POST",
@@ -58,7 +79,7 @@ Deno.serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        await supabase.from("payment_transactions").insert({ booking_id, property_id, amount, currency: currency.toUpperCase(), payment_provider: "peach", payment_reference: data.id, status: "pending" });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "peach", transactionRef: data.id });
 
         // Peach uses a widget-based checkout; the redirect URL includes the checkout ID
         const checkoutUrl = `${PEACH_API}/paymentWidgets.js?checkoutId=${data.id}`;
@@ -75,8 +96,7 @@ Deno.serve(async (req) => {
         const isSuccess = data.result?.code && /^(000\.000\.|000\.100\.|000\.600\.)/.test(data.result.code);
 
         if (isSuccess) {
-          await supabase.from("payment_transactions").update({ status: "completed" }).eq("payment_reference", checkoutId);
-          if (data.merchantTransactionId) await supabase.from("bookings").update({ payment_status: "paid", payment_reference: checkoutId, paid_at: new Date().toISOString() }).eq("id", data.merchantTransactionId);
+          await settleStoredTransaction(supabase, storedTxn!, parseFloat(data.amount || "0"), checkoutId);
         }
 
         return new Response(JSON.stringify({ success: true, gateway: "peach", payment_method: "redirect", transaction_ref: checkoutId, amount: parseFloat(data.amount || "0"), currency: data.currency || "", status: isSuccess ? "completed" : "pending" }),

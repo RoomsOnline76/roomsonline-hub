@@ -2,6 +2,7 @@
 // DPO PAY GATEWAY v1.0 — DPO Group API (redirect-based)
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +24,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "dpo", transaction_ref);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "dpo", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     const { data: credData } = await supabase
       .from("integration_configs").select("config")
-      .eq("property_id", property_id).eq("integration_type", "payment_credentials").maybeSingle();
+      .eq("property_id", credPropertyId).eq("integration_type", "payment_credentials").maybeSingle();
     const creds = (credData?.config as Record<string, string>) || {};
     const companyToken = creds.company_token;
     const serviceType = creds.service_type || "5525";
@@ -44,9 +65,9 @@ Deno.serve(async (req) => {
   <Transaction>
     <PaymentAmount>${amount.toFixed(2)}</PaymentAmount>
     <PaymentCurrency>${currency.toUpperCase()}</PaymentCurrency>
-    <CompanyRef>${booking_id || "ROL-" + Date.now()}</CompanyRef>
-    <RedirectURL>${return_url}</RedirectURL>
-    <BackURL>${cancel_url || return_url}</BackURL>
+    <CompanyRef>${checkout!.id}</CompanyRef>
+    <RedirectURL>${safeReturnUrl}</RedirectURL>
+    <BackURL>${safeCancelUrl}</BackURL>
     <CompanyRefUnique>1</CompanyRefUnique>
     <PTL>30</PTL>
   </Transaction>
@@ -78,7 +99,7 @@ Deno.serve(async (req) => {
         const transToken = tokenMatch[1];
         const redirectUrl = `${DPO_PAY_URL}?ID=${transToken}`;
 
-        await supabase.from("payment_transactions").insert({ booking_id, property_id, amount, currency: currency.toUpperCase(), payment_provider: "dpo", payment_reference: transToken, status: "pending" });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "dpo", transactionRef: transToken });
 
         return new Response(JSON.stringify({ success: true, gateway: "dpo", payment_method: "redirect", redirect_url: redirectUrl, transaction_ref: transToken, amount, currency: currency.toUpperCase() }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -92,8 +113,8 @@ Deno.serve(async (req) => {
         const isSuccess = result === "000";
 
         if (isSuccess) {
-          await supabase.from("payment_transactions").update({ status: "completed" }).eq("payment_reference", token);
-          if (booking_id) await supabase.from("bookings").update({ payment_status: "paid", payment_reference: token, paid_at: new Date().toISOString() }).eq("id", booking_id);
+          const paidAmount = parseFloat(text.match(/<TransactionAmount>([^<]+)<\/TransactionAmount>/)?.[1] || "0");
+          await settleStoredTransaction(supabase, storedTxn!, paidAmount, token);
         }
 
         return new Response(JSON.stringify({ success: true, gateway: "dpo", payment_method: "redirect", transaction_ref: token, amount, currency: currency?.toUpperCase() || "", status: isSuccess ? "completed" : "pending" }),

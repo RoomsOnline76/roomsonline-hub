@@ -2,6 +2,7 @@
 // KLARNA GATEWAY v1.0 — Klarna Payments API (BNPL, redirect-based)
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +24,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "klarna", transaction_ref);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "klarna", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     const { data: credData } = await supabase
       .from("integration_configs").select("config")
-      .eq("property_id", property_id).eq("integration_type", "payment_credentials").maybeSingle();
+      .eq("property_id", credPropertyId).eq("integration_type", "payment_credentials").maybeSingle();
     const creds = (credData?.config as Record<string, string>) || {};
     const username = creds.username;
     const password = creds.password;
@@ -57,10 +78,10 @@ Deno.serve(async (req) => {
             total_tax_amount: 0,
           }],
           merchant_urls: {
-            confirmation: return_url,
-            cancellation: cancel_url || return_url,
+            confirmation: safeReturnUrl,
+            cancellation: safeCancelUrl,
           },
-          merchant_reference1: booking_id || `ROL-${Date.now()}`,
+          merchant_reference1: checkout!.id,
         };
 
         const res = await fetch(`${baseUrl}/checkout/v3/orders`, {
@@ -75,7 +96,7 @@ Deno.serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        await supabase.from("payment_transactions").insert({ booking_id, property_id, amount, currency: currency.toUpperCase(), payment_provider: "klarna", payment_reference: data.order_id, status: "pending" });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "klarna", transactionRef: data.order_id });
 
         // Klarna returns an HTML snippet or redirect URL
         const redirectUrl = data.redirect_url || `${baseUrl}/checkout/v3/orders/${data.order_id}`;
@@ -92,8 +113,7 @@ Deno.serve(async (req) => {
         const isComplete = data.status === "checkout_complete";
 
         if (isComplete) {
-          await supabase.from("payment_transactions").update({ status: "completed" }).eq("payment_reference", orderId);
-          if (data.merchant_reference1) await supabase.from("bookings").update({ payment_status: "paid", payment_reference: orderId, paid_at: new Date().toISOString() }).eq("id", data.merchant_reference1);
+          await settleStoredTransaction(supabase, storedTxn!, (data.order_amount || 0) / 100, orderId);
         }
 
         return new Response(JSON.stringify({ success: true, gateway: "klarna", payment_method: "redirect", transaction_ref: orderId, amount: (data.order_amount || 0) / 100, currency: data.purchase_currency || "", status: isComplete ? "completed" : data.status }),

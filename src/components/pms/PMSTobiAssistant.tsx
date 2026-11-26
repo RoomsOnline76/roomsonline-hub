@@ -11,6 +11,7 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 
+import { supabase } from "@/integrations/supabase/client";
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -218,7 +219,7 @@ export function PMSTobiAssistant({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           messages: [],
@@ -255,7 +256,7 @@ export function PMSTobiAssistant({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           messages: chatMessages.map(m => ({ role: m.role, content: m.content })),

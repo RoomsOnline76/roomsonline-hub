@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 // ============================================================================
 // LITTLE HOTELIER API ADAPTER
 // Follows the standardized adapter contract from adapter-contract.ts
@@ -293,6 +294,11 @@ function transformToAvailability(apiResponse: any, startDate: string, endDate: s
 }
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders);
+    if (denied) return denied;
+  }
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

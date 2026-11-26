@@ -3043,6 +3043,24 @@ export type Database = {
           },
         ]
       }
+      internal_cron_tokens: {
+        Row: {
+          created_at: string
+          id: number
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          token?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           billing_type: string
@@ -19514,6 +19532,7 @@ export type Database = {
         Returns: boolean
       }
       consume_onboarding_token: { Args: { _token: string }; Returns: boolean }
+      cron_token: { Args: never; Returns: string }
       decrypt_sensitive_text: {
         Args: { encrypted_data: string }
         Returns: string
@@ -19910,6 +19929,7 @@ export type Database = {
           used_at: string
         }[]
       }
+      verify_cron_token: { Args: { _token: string }; Returns: boolean }
       waive_subscription_charge: {
         Args: { _charge_id: string; _note?: string }
         Returns: boolean

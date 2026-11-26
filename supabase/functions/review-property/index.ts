@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { requireAdminOrInternal, authErrorResponse } from "../_shared/authGuard.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -13,6 +14,16 @@ interface ReviewRequest {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    // Internal callers (service role / scheduled job) or platform admins only.
+    try {
+      await requireAdminOrInternal(req);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
+    }
+  }
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

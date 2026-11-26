@@ -2,6 +2,7 @@
 // AFFIRM GATEWAY v1.0 — Affirm Checkout API (BNPL, redirect-based)
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +24,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "affirm", booking_id);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "affirm", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     const { data: credData } = await supabase
       .from("integration_configs").select("config")
-      .eq("property_id", property_id).eq("integration_type", "payment_credentials").maybeSingle();
+      .eq("property_id", credPropertyId).eq("integration_type", "payment_credentials").maybeSingle();
     const creds = (credData?.config as Record<string, string>) || {};
     const publicKey = creds.public_api_key;
     const privateKey = creds.private_api_key;
@@ -44,11 +65,11 @@ Deno.serve(async (req) => {
         const amountInCents = Math.round(amount * 100);
         const checkoutPayload = {
           merchant: {
-            user_confirmation_url: return_url,
-            user_cancel_url: cancel_url || return_url,
+            user_confirmation_url: safeReturnUrl,
+            user_cancel_url: safeCancelUrl,
             name: "RoomsOnline",
           },
-          order_id: booking_id || `ROL-${Date.now()}`,
+          order_id: checkout!.id,
           total: amountInCents,
           currency: currency.toUpperCase(),
           items: [{
@@ -61,13 +82,13 @@ Deno.serve(async (req) => {
 
         // Affirm checkout is primarily client-side; we return the config for the JS SDK
         // For server-side, we'd create a charge after user confirms
-        await supabase.from("payment_transactions").insert({ booking_id, property_id, amount, currency: currency.toUpperCase(), payment_provider: "affirm", payment_reference: booking_id || `ROL-${Date.now()}`, status: "pending" });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "affirm", transactionRef: checkout!.id });
 
         return new Response(JSON.stringify({
           success: true, gateway: "affirm", payment_method: "redirect",
           redirect_url: `https://${isSandbox ? "sandbox" : "www"}.affirm.com/checkout`,
           client_token: publicKey,
-          transaction_ref: booking_id || `ROL-${Date.now()}`,
+          transaction_ref: checkout!.id,
           amount, currency: currency.toUpperCase(),
           raw_response: { checkout_config: checkoutPayload, public_key: publicKey },
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -81,7 +102,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ checkout_token: checkoutToken }),
         });
         const data = await res.json();
-        const isAuthorized = data.status === "authorized";
+        const isAuthorized = data.status === "authorized" && data.order_id === storedTxn!.booking_id;
 
         if (isAuthorized && data.id) {
           // Capture the charge
@@ -91,8 +112,9 @@ Deno.serve(async (req) => {
           });
           const captureData = await captureRes.json();
 
-          await supabase.from("payment_transactions").update({ status: "completed", metadata: { affirm_charge_id: data.id } }).eq("payment_reference", checkoutToken);
-          if (data.order_id) await supabase.from("bookings").update({ payment_status: "paid", payment_reference: data.id, paid_at: new Date().toISOString() }).eq("id", data.order_id);
+          if (captureRes.ok && captureData) {
+            await settleStoredTransaction(supabase, storedTxn!, (data.amount || 0) / 100, data.id);
+          }
         }
 
         return new Response(JSON.stringify({ success: true, gateway: "affirm", payment_method: "redirect", transaction_ref: data?.id || checkoutToken, amount: (data?.amount || 0) / 100, currency: data?.currency || "", status: isAuthorized ? "completed" : "pending" }),

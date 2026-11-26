@@ -6,6 +6,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 const BASE = "https://api.pricelabs.co/v2/integration/api";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -349,6 +350,11 @@ async function applySuggestions(
 // -------------------------------------------------------------------
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders);
+    if (denied) return denied;
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const json = (data: unknown, status = 200) =>

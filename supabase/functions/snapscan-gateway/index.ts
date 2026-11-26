@@ -2,6 +2,7 @@
 // SNAPSCAN GATEWAY v1.0 — SnapScan QR Code Payment API
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,9 +23,29 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "snapscan", transaction_ref);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "snapscan", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(return_url);
+
     const { data: credData } = await supabase
       .from("integration_configs").select("config")
-      .eq("property_id", property_id).eq("integration_type", "payment_credentials").maybeSingle();
+      .eq("property_id", credPropertyId).eq("integration_type", "payment_credentials").maybeSingle();
     const creds = (credData?.config as Record<string, string>) || {};
     const merchantId = creds.merchant_id;
     const apiKey = creds.api_key;
@@ -38,10 +59,10 @@ Deno.serve(async (req) => {
       case "initiate_payment": {
         // SnapScan uses QR codes — generate a payment URL with the snap code
         const amountInCents = Math.round(amount * 100);
-        const ref = booking_id?.substring(0, 20) || `ROL${Date.now()}`;
+        const ref = `${checkout!.id.replace(/-/g, "").substring(0, 12)}${Date.now().toString(36)}`.substring(0, 20);
         const snapUrl = `https://pos.snapscan.io/qr/${merchantId}?id=${ref}&amount=${amountInCents}&strict=true`;
 
-        await supabase.from("payment_transactions").insert({ booking_id, property_id, amount, currency: "ZAR", payment_provider: "snapscan", payment_reference: ref, status: "pending" });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: "ZAR", provider: "snapscan", transactionRef: ref });
 
         return new Response(JSON.stringify({ success: true, gateway: "snapscan", payment_method: "qr", redirect_url: snapUrl, transaction_ref: ref, amount, currency: "ZAR" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -56,8 +77,7 @@ Deno.serve(async (req) => {
         const isComplete = payment?.status === "completed";
 
         if (isComplete) {
-          await supabase.from("payment_transactions").update({ status: "completed" }).eq("payment_reference", ref);
-          if (booking_id) await supabase.from("bookings").update({ payment_status: "paid", payment_reference: ref, paid_at: new Date().toISOString() }).eq("id", booking_id);
+          await settleStoredTransaction(supabase, storedTxn!, payment?.totalAmount ? payment.totalAmount / 100 : 0, ref);
         }
 
         return new Response(JSON.stringify({ success: true, gateway: "snapscan", payment_method: "qr", transaction_ref: ref, amount: payment?.totalAmount ? payment.totalAmount / 100 : 0, currency: "ZAR", status: isComplete ? "completed" : "pending" }),

@@ -46,7 +46,7 @@ export function ShareBrochureButtons({
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-itinerary-pdf', {
-        body: { itinerary_id: itineraryId }
+        body: { itinerary_id: itineraryId, session_id: sessionStorage.getItem("rol_session_id") }
       });
 
       if (error) throw error;

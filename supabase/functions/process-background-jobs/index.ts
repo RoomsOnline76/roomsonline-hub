@@ -10,6 +10,7 @@ import { claimJobs, completeJob, failJob, type BackgroundJob } from "../_shared/
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 import { queueRuStaticDelta } from "../_shared/ruStaticDelta.ts";
 import { syncBookingToChannel, type ChannelBookingChange } from "../_shared/channelBookingSync.ts";
+import { requireAdminOrInternal, authErrorResponse } from "../_shared/authGuard.ts";
 import {
   closeRuChannelEditWindow,
   type ChannelEditWindowNight,
@@ -235,6 +236,16 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    // Internal callers (service role / scheduled job) or platform admins only.
+    try {
+      await requireAdminOrInternal(req);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
+    }
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

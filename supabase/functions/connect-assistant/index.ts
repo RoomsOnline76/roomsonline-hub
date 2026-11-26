@@ -236,13 +236,22 @@ All prices in ZAR. The first 60 days are free (full stack, no subscription, setu
   }
 }
 
+/** Only plain user/assistant turns from the caller; instructions stay server-side. */
+function sanitizeChatMessages(raw: unknown): Array<{ role: "user" | "assistant"; content: string }> {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((m) => m && typeof m === "object" && ((m as { role?: unknown }).role === "user" || (m as { role?: unknown }).role === "assistant"))
+    .map((m) => ({ role: (m as { role: "user" | "assistant" }).role, content: String((m as { content?: unknown }).content ?? "").slice(0, 4000) }))
+    .slice(-30);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages } = await req.json();
+    const messages = sanitizeChatMessages((await req.json())?.messages);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -262,7 +271,7 @@ Deno.serve(async (req) => {
         model: AI_MODELS.connect_assistant,
         messages: [
           { role: "system", content: systemPrompt },
-          ...(messages || []),
+          ...messages,
         ],
         stream: true,
       }),

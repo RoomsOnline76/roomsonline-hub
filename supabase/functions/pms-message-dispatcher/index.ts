@@ -6,6 +6,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
+import { getCaller, canAccessProperty, isPlatformAdmin } from "../_shared/authGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,20 +67,48 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Authenticate
-    let userId: string;
-    try {
-      userId = await authenticateRequest(req);
-    } catch {
+    // Authenticate: internal callers (service role / scheduled job) or a signed-in user.
+    const caller = await getCaller(req);
+    if (!caller) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const forbidden = () => new Response(JSON.stringify({ error: "Not allowed" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
     const supabase = getServiceSupabase();
     const body = await req.json();
     const { action, property_id } = body;
+
+    // Queue processing is a system task; every other action is scoped to a
+    // property the signed-in caller manages.
+    if (caller.kind === "user") {
+      if (action === "process_queue") {
+        if (!(await isPlatformAdmin(caller.userId))) return forbidden();
+      } else if (!(await canAccessProperty(caller.userId, property_id))) {
+        return forbidden();
+      }
+    }
+
+    /** Recipient must be the guest on a reservation of this property, or the caller. */
+    const recipientAllowed = async (email: string | null | undefined, reservationId: string | null | undefined): Promise<boolean> => {
+      if (!email) return false;
+      const target = String(email).trim().toLowerCase();
+      if (caller.kind !== "user") return true;
+      if (caller.email && caller.email.toLowerCase() === target) return true;
+      if (!reservationId) return false;
+      const { data: res } = await supabase.from("rolos_reservations").select("*").eq("id", reservationId).maybeSingle();
+      if (!res || res.property_id !== property_id) return false;
+      const emails = [res.guest_email, res.email].filter(Boolean).map((e: string) => String(e).toLowerCase());
+      if (res.guest_profile_id) {
+        const { data: g } = await supabase.from("rolos_guest_profiles").select("email").eq("id", res.guest_profile_id).maybeSingle();
+        if (g?.email) emails.push(String(g.email).toLowerCase());
+      }
+      return emails.includes(target);
+    };
 
     // ── Template CRUD ────────────────────────────────────────────────
     if (action === "list_templates") {
@@ -94,10 +123,15 @@ Deno.serve(async (req) => {
 
     if (action === "upsert_template") {
       const { template } = body;
-      const payload = { ...template, property_id };
+      const t = (template ?? {}) as Record<string, unknown>;
+      // Only editable template fields; ownership columns are never taken from the caller.
+      const payload: Record<string, unknown> = { property_id };
+      for (const k of ["name", "trigger_event", "subject", "body", "channel", "is_active", "send_offset_hours"]) {
+        if (k in t) payload[k] = t[k];
+      }
       let result;
-      if (payload.id) {
-        const { data, error } = await supabase.from("rolos_message_templates").update(payload).eq("id", payload.id).select().single();
+      if (t.id) {
+        const { data, error } = await supabase.from("rolos_message_templates").update(payload).eq("id", t.id as string).eq("property_id", property_id).select().single();
         if (error) throw error;
         result = data;
       } else {
@@ -110,7 +144,7 @@ Deno.serve(async (req) => {
 
     if (action === "delete_template") {
       const { template_id } = body;
-      const { error } = await supabase.from("rolos_message_templates").delete().eq("id", template_id);
+      const { error } = await supabase.from("rolos_message_templates").delete().eq("id", template_id).eq("property_id", property_id);
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -118,6 +152,8 @@ Deno.serve(async (req) => {
     // ── Queue a message ──────────────────────────────────────────────
     if (action === "queue_message") {
       const { reservation_id, template_id, recipient_email, recipient_phone, subject, body: msgBody, channel, scheduled_at } = body;
+      if (recipient_email && !(await recipientAllowed(recipient_email, reservation_id))) return forbidden();
+      if (!recipient_email && caller.kind === "user") return forbidden();
       const { data, error } = await supabase.from("rolos_message_queue").insert({
         property_id, reservation_id, template_id,
         recipient_email, recipient_phone,
@@ -134,6 +170,7 @@ Deno.serve(async (req) => {
     if (action === "send_message") {
       const { recipient_email, subject, body: msgBody, reservation_id, template_id } = body;
       if (!recipient_email || !subject) throw new Error("recipient_email and subject required");
+      if (!(await recipientAllowed(recipient_email, reservation_id))) return forbidden();
 
       const resendKey = Deno.env.get("RESEND_API_KEY");
       if (!resendKey) throw new Error("RESEND_API_KEY not configured");

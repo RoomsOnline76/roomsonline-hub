@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,11 +27,31 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "flutterwave", body.tx_ref || transaction_ref);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "flutterwave", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     // Fetch per-property Flutterwave credentials
     const { data: credData } = await supabase
       .from("integration_configs")
       .select("config")
-      .eq("property_id", property_id)
+      .eq("property_id", credPropertyId)
       .eq("integration_type", "payment_credentials")
       .maybeSingle();
 
@@ -53,13 +74,13 @@ Deno.serve(async (req) => {
           }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
 
-        const txRef = `ROL-${booking_id?.substring(0, 8) || "pay"}-${Date.now()}`;
+        const txRef = `ROL-${checkout!.id.substring(0, 8)}-${Date.now()}`;
 
         const payload = {
           tx_ref: txRef,
           amount,
           currency: currency.toUpperCase(),
-          redirect_url: return_url,
+          redirect_url: safeReturnUrl,
           customer: {
             email: guest_email || "guest@roomsonline.co.za",
             name: guest_name || "Guest",
@@ -70,8 +91,8 @@ Deno.serve(async (req) => {
             logo: "https://roomsonline.co.za/logo.png",
           },
           meta: {
-            booking_id: booking_id || "",
-            property_id: property_id || "",
+            booking_id: checkout!.id,
+            property_id: checkout!.property_id,
           },
         };
 
@@ -95,18 +116,7 @@ Deno.serve(async (req) => {
         }
 
         // Log transaction
-        await supabase.from("payment_transactions").insert({
-          booking_id,
-          property_id,
-          amount,
-          currency: currency.toUpperCase(),
-          payment_provider: "flutterwave",
-          payment_reference: txRef,
-          status: "pending",
-          metadata: { flw_tx_ref: txRef },
-        }).then(({ error }) => {
-          if (error) console.error("[FlutterwaveGateway] Transaction log error:", error);
-        });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "flutterwave", transactionRef: txRef });
 
         return new Response(JSON.stringify({
           success: true,
@@ -135,16 +145,8 @@ Deno.serve(async (req) => {
         const data = await res.json();
         const isSuccess = data.data?.status === "successful";
 
-        if (isSuccess) {
-          await supabase.from("payment_transactions")
-            .update({ status: "completed", metadata: { flw_verify: data.data } })
-            .eq("payment_reference", data.data.tx_ref);
-
-          if (data.data.meta?.booking_id) {
-            await supabase.from("bookings")
-              .update({ payment_status: "paid", payment_reference: String(txId), paid_at: new Date().toISOString() })
-              .eq("id", data.data.meta.booking_id);
-          }
+        if (isSuccess && data.data?.tx_ref === storedTxn!.transaction_ref && data.data?.meta?.booking_id === storedTxn!.booking_id) {
+          await settleStoredTransaction(supabase, storedTxn!, Number(data.data.amount) || 0, String(txId));
         }
 
         return new Response(JSON.stringify({

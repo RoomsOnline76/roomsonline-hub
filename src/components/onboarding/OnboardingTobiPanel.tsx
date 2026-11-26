@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
+import { supabase } from "@/integrations/supabase/client";
 export interface OnboardingTobiBlocker {
   label: string;
   detail?: string;
@@ -110,7 +111,7 @@ export function OnboardingTobiPanel({ context, defaultOpen = false, onOpenField 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({
           messages: chatMessages.map((m) => ({ role: m.role, content: m.content })),

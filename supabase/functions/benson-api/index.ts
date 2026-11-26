@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 
+import { guardBodyProperty } from "../_shared/authGuard.ts";
 // ============================================================================
 // BENSON API - BASE REFERENCE IMPLEMENTATION
 // All other PMS adapters MUST conform to Benson's response shapes.
@@ -489,6 +490,11 @@ async function postBill(
 }
 
 Deno.serve(async (req) => {
+  {
+    // Callers must manage the property this request touches.
+    const denied = await guardBodyProperty(req, corsHeaders);
+    if (denied) return denied;
+  }
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

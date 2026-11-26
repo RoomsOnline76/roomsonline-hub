@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 import { z } from "npm:zod@3.23.8";
 
+import { escapeHtml } from "../_shared/authGuard.ts";
 // Lazy client: constructed on first use so cold boots don't pay for it.
 let _resend: Resend | null = null;
 const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
@@ -87,7 +88,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { name, email, message, source_page } = validationResult.data;
 
-    console.log("Received access request:", { name, email, ip: clientIP, source_page });
+    console.log("Received access request", { source_page });
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -109,16 +110,10 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Error checking duplicate requests:", checkError);
     } else if (existingRequests && existingRequests.length > 0) {
       const existing = existingRequests[0];
-      console.warn(`Duplicate request blocked for email: ${email}, existing status: ${existing.status}`);
+      console.warn("Duplicate access request blocked");
 
-      let userMessage = "You have already submitted an access request. ";
-      if (existing.status === "pending") {
-        userMessage += "Your request is being reviewed.";
-      } else if (existing.status === "approved") {
-        userMessage += "Your request has been approved. Please check your email.";
-      } else {
-        userMessage += "Please contact support if you need assistance.";
-      }
+      // Same answer whatever the stored status, so this cannot be used to look requests up.
+      const userMessage = "You have already submitted an access request. We will be in touch by email.";
 
       return new Response(
         JSON.stringify({ error: userMessage }),
@@ -137,7 +132,7 @@ const handler = async (req: Request): Promise<Response> => {
     const fromEmail = fromEmailConfig || "RoomsOnline <onboarding@getResend().dev>";
     const adminEmail = toEmailConfig || "sleepinafrica@roomsonline.co.za";
 
-    console.log("Using email config:", { fromEmail, adminEmail });
+    console.log("Access request email config resolved");
 
     // Store request with origin metadata
     const { data: accessRequest, error: dbError } = await supabase
@@ -169,17 +164,17 @@ const handler = async (req: Request): Promise<Response> => {
     await getResend().emails.send({
       from: fromEmail,
       to: [adminEmail],
-      subject: `New Access Request from ${name}`,
+      subject: `New Access Request from ${String(name).replace(/[\r\n<>]/g, " ").slice(0, 80)}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">New Access Request</h2>
           <p>A new user has requested access to RoomsOnline:</p>
           <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Name:</strong> ${name}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            ${message ? `<p><strong>Message:</strong> ${message}</p>` : ""}
-            ${source_page ? `<p><strong>Source:</strong> ${source_page}</p>` : ""}
-            ${clientIP !== "unknown" ? `<p><strong>IP:</strong> ${clientIP}</p>` : ""}
+            <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+            <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+            ${message ? `<p><strong>Message:</strong> ${escapeHtml(message)}</p>` : ""}
+            ${source_page ? `<p><strong>Source:</strong> ${escapeHtml(source_page)}</p>` : ""}
+            ${clientIP !== "unknown" ? `<p><strong>IP:</strong> ${escapeHtml(clientIP)}</p>` : ""}
           </div>
           <p>Please review this request in the admin panel:</p>
           <a href="https://sleepinafrica.roomsonline.co.za/admin/access-requests" 
@@ -201,7 +196,7 @@ const handler = async (req: Request): Promise<Response> => {
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #333;">Thank You for Your Interest!</h2>
-          <p>Hi ${name},</p>
+          <p>Hi ${escapeHtml(name)},</p>
           <p>We've received your access request for RoomsOnline. Our team will review your request and get back to you shortly.</p>
           <p style="color: #666; margin-top: 30px;">
             Best regards,<br>

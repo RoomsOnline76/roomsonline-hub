@@ -3,6 +3,7 @@ import { Resend } from 'npm:resend@2';
 import { AI_MODELS } from "../_shared/aiModels.ts";
 import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
 
+import { requireAdminOrInternal, authErrorResponse } from "../_shared/authGuard.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -642,6 +643,16 @@ function generateEmailHtml(
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    // Internal callers (service role / scheduled job) or platform admins only.
+    try {
+      await requireAdminOrInternal(req);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
+    }
+  }
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -662,7 +673,9 @@ Deno.serve(async (req) => {
     if (req.method === 'POST') {
       try {
         const body = await req.json();
-        customRecipient = body.recipient || null;
+        // The report only ever goes to team mailboxes.
+        const requested = typeof body.recipient === "string" ? body.recipient.trim().toLowerCase() : "";
+        customRecipient = /^[^@\s]+@(roomsonline\.co\.za|rolos\.co\.za)$/.test(requested) ? requested : null;
         isManualTrigger = body.manual === true;
       } catch {
         // Empty body is fine for scheduled calls

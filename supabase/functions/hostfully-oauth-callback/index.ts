@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { isAllowedReturnUrl } from "../_shared/authGuard.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -11,10 +12,10 @@ const getAppUrl = (stateParam?: string | null): string => {
   if (stateParam) {
     try {
       const stateData = JSON.parse(atob(stateParam));
-      if (stateData.origin_url && 
-          (stateData.origin_url.startsWith('http://') || stateData.origin_url.startsWith('https://'))) {
+      // Only send visitors back to our own domains.
+      if (stateData.origin_url && isAllowedReturnUrl(stateData.origin_url)) {
         console.log('Using origin_url from state:', stateData.origin_url);
-        return stateData.origin_url;
+        return new URL(stateData.origin_url).origin;
       }
     } catch (e) {
       console.warn('Failed to parse origin_url from state:', e);

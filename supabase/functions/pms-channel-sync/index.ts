@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { canAccessProperty } from "../_shared/authGuard.ts";
 import {
   createRateResolver,
   compressToPeriods,
@@ -253,6 +254,21 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { action, connection_id } = body;
+
+    // The connection must belong to a property the caller manages.
+    {
+      const callerId = claimsData.claims.sub as string;
+      const { data: conn } = await supabase
+        .from("rolos_channel_connections")
+        .select("property_id")
+        .eq("id", connection_id)
+        .maybeSingle();
+      if (!conn?.property_id || !(await canAccessProperty(callerId, conn.property_id as string))) {
+        return new Response(JSON.stringify({ error: "Not allowed" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     switch (action) {
       case "push_inventory":

@@ -12,6 +12,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
+import { requireAdminOrInternal, authErrorResponse } from "../_shared/authGuard.ts";
 const SERVICE = "hubspot";
 /** How far back to look when an owner has never synced. */
 const COLD_START_HOURS = 72;
@@ -26,6 +27,16 @@ interface OwnerRow {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    // Internal callers (service role / scheduled job) or platform admins only.
+    try {
+      await requireAdminOrInternal(req);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
+    }
+  }
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const url = Deno.env.get("SUPABASE_URL")!;

@@ -4,6 +4,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 
+import { getCaller, isPlatformAdmin, canAccessProperty } from "../_shared/authGuard.ts";
 const CF_ZONE_ID = Deno.env.get("CLOUDFLARE_ZONE_ID") || "";
 const CF_API_TOKEN = Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
@@ -185,6 +186,30 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // Only someone who manages the property (or every property of the portfolio) may remove its domain.
+    const caller = await getCaller(req);
+    if (!caller) {
+      return new Response(JSON.stringify({ error: "Sign in required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (caller.kind === "user") {
+      let allowed = false;
+      if (await isPlatformAdmin(caller.userId)) {
+        allowed = true;
+      } else if (portfolio_id) {
+        const { data: members } = await supabase.from("property_portfolio_members").select("property_id").eq("portfolio_id", portfolio_id);
+        const ids = (members || []).map((m: { property_id: string }) => m.property_id);
+        allowed = ids.length > 0;
+        for (const id of ids) {
+          if (!(await canAccessProperty(caller.userId, id))) { allowed = false; break; }
+        }
+      } else if (property_id) {
+        allowed = await canAccessProperty(caller.userId, property_id);
+      }
+      if (!allowed) {
+        return new Response(JSON.stringify({ error: "Not allowed" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
 
     let hostnameId: string | null = null;
     let hostname: string | null = null;

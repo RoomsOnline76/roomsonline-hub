@@ -18,6 +18,7 @@ import {
 } from "../_shared/emailBrand.ts";
 import { displayBookingReference } from "../_shared/bookingReference.ts";
 
+import { requireAdminOrInternal, authErrorResponse } from "../_shared/authGuard.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -29,6 +30,16 @@ const esc = (s: unknown) =>
 const money = (n: number) => `R${Number(n || 0).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
 Deno.serve(async (req) => {
+  if (req.method !== "OPTIONS") {
+    // Internal callers (service role / scheduled job) or platform admins only.
+    try {
+      await requireAdminOrInternal(req);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
+    }
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const json = (payload: unknown, status = 200) =>

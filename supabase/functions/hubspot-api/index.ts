@@ -1180,7 +1180,9 @@ Deno.serve(async (req) => {
           .eq("integration_type", SERVICE)
           .order("created_at", { ascending: false })
           .limit(body.limit ?? 25);
-        if (propertyIds.length) query.or(`property_id.is.null,property_id.in.(${propertyIds.join(",")})`);
+        // An owner with no linked properties has no sync history to see.
+        if (!propertyIds.length) return ok({ entries: [] });
+        query.in("property_id", propertyIds);
         const { data, error } = await query;
         if (error) return fail(`Could not read the sync log: ${error.message}`, 500);
         return ok({ entries: data || [] });

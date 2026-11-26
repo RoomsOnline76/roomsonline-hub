@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCheckoutBooking, findStoredTransaction, settleStoredTransaction, recordPendingTransaction, safeGatewayReturn, CheckoutError } from "../_shared/gatewayGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,11 +42,31 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    let storedTxn: Awaited<ReturnType<typeof findStoredTransaction>> = null;
+    let checkout: Awaited<ReturnType<typeof loadCheckoutBooking>> | null = null;
+    try {
+      if (action === "verify_payment") {
+        storedTxn = await findStoredTransaction(supabase, "paypal", transaction_ref || body.order_id);
+        if (!storedTxn) throw new CheckoutError("Unknown transaction", 404);
+      } else if (action === "initiate_payment") {
+        checkout = await loadCheckoutBooking(supabase, booking_id, property_id, amount);
+      }
+    } catch (e) {
+      if (e instanceof CheckoutError) {
+        return new Response(JSON.stringify({ success: false, gateway: "paypal", error: e.message }),
+          { status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw e;
+    }
+    const credPropertyId = storedTxn?.property_id ?? checkout?.property_id ?? property_id;
+    const safeReturnUrl = await safeGatewayReturn(return_url);
+    const safeCancelUrl = await safeGatewayReturn(cancel_url || return_url);
+
     // Fetch per-property PayPal credentials
     const { data: credData } = await supabase
       .from("integration_configs")
       .select("config")
-      .eq("property_id", property_id)
+      .eq("property_id", credPropertyId)
       .eq("integration_type", "payment_credentials")
       .maybeSingle();
 
@@ -78,7 +99,7 @@ Deno.serve(async (req) => {
         const orderPayload = {
           intent: "CAPTURE",
           purchase_units: [{
-            reference_id: booking_id || crypto.randomUUID(),
+            reference_id: checkout!.id,
             description: itemName,
             amount: {
               currency_code: currency.toUpperCase(),
@@ -88,8 +109,8 @@ Deno.serve(async (req) => {
           payment_source: {
             paypal: {
               experience_context: {
-                return_url: return_url,
-                cancel_url: cancel_url || return_url,
+                return_url: safeReturnUrl,
+                cancel_url: safeCancelUrl,
                 brand_name: "RoomsOnline",
                 user_action: "PAY_NOW",
                 landing_page: "LOGIN",
@@ -121,18 +142,7 @@ Deno.serve(async (req) => {
           || order.links?.find((l: any) => l.rel === "approve")?.href;
 
         // Log transaction
-        await supabase.from("payment_transactions").insert({
-          booking_id,
-          property_id,
-          amount,
-          currency: currency.toUpperCase(),
-          payment_provider: "paypal",
-          payment_reference: order.id,
-          status: "pending",
-          metadata: { paypal_order_id: order.id },
-        }).then(({ error }) => {
-          if (error) console.error("[PayPalGateway] Transaction log error:", error);
-        });
+        await recordPendingTransaction(supabase, { bookingId: checkout!.id, amount, currency: currency.toUpperCase(), provider: "paypal", transactionRef: order.id });
 
         return new Response(JSON.stringify({
           success: true,
@@ -169,15 +179,9 @@ Deno.serve(async (req) => {
         const isCompleted = capture.status === "COMPLETED";
 
         if (isCompleted) {
-          await supabase.from("payment_transactions")
-            .update({ status: "completed", metadata: { paypal_capture: capture } })
-            .eq("payment_reference", orderId);
-
-          const refId = capture.purchase_units?.[0]?.reference_id;
-          if (refId) {
-            await supabase.from("bookings")
-              .update({ payment_status: "paid", payment_reference: orderId, paid_at: new Date().toISOString() })
-              .eq("id", refId);
+          const capturedValue = parseFloat(capture.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value || "0");
+          if (capture.purchase_units?.[0]?.reference_id === storedTxn!.booking_id) {
+            await settleStoredTransaction(supabase, storedTxn!, capturedValue, orderId);
           }
         }
 

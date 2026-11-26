@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { trustedReturnUrl } from "../_shared/authGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -161,12 +162,14 @@ Deno.serve(async (req) => {
       const reference = notifyData.REFERENCE;
 
       // Verify checksum
-      if (encryptionKey && receivedChecksum) {
-        const isValid = verifyChecksum(notifyData, receivedChecksum, encryptionKey);
-        if (!isValid) {
-          console.error("[PayGate] Invalid checksum on notify");
-          return new Response("OK", { status: 200, headers: corsHeaders });
-        }
+      // A notice is only trusted when it carries a valid checksum signed with our key.
+      if (!encryptionKey || !receivedChecksum || !verifyChecksum(notifyData, receivedChecksum, encryptionKey)) {
+        console.error("[PayGate] Missing or invalid checksum on notify — ignored");
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+      if (paygateId && notifyData.PAYGATE_ID && notifyData.PAYGATE_ID !== paygateId) {
+        console.error("[PayGate] Notify for a different merchant — ignored");
+        return new Response("OK", { status: 200, headers: corsHeaders });
       }
 
       // Map PayGate status to our status
@@ -185,6 +188,21 @@ Deno.serve(async (req) => {
 
       if (txError || !transaction) {
         console.error("[PayGate] Transaction not found for reference:", reference);
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+
+      if (transaction.status === "paid" || transaction.status === "completed") {
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+      if (payRequestId && transaction.transaction_ref && transaction.transaction_ref !== payRequestId) {
+        console.error("[PayGate] PAY_REQUEST_ID does not match the recorded request — ignored");
+        return new Response("OK", { status: 200, headers: corsHeaders });
+      }
+      const expectedCents = Math.round(Number(transaction.amount) * 100);
+      const notifiedCents = parseInt(notifyData.AMOUNT || "0", 10);
+      if (newStatus === "paid" && (!Number.isFinite(notifiedCents) || notifiedCents < expectedCents)) {
+        console.error("[PayGate] Notified amount is below the expected amount — not marking paid");
+        await supabase.from("payment_transactions").update({ status: "amount_mismatch", gateway_response: notifyData }).eq("id", transaction.id);
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
 
@@ -317,7 +335,7 @@ Deno.serve(async (req) => {
 
       // Build URLs
       const siteUrl = Deno.env.get("SITE_URL") || "https://book.sleepinafrica.roomsonline.co.za";
-      const returnUrl = body.return_url || `${siteUrl}/booking-confirmation/${bookingId}?payment=success`;
+      const returnUrl = await trustedReturnUrl(body.return_url, `${siteUrl}/booking-confirmation/${bookingId}?payment=success`);
       const notifyUrl = `${supabaseUrl}/functions/v1/paygate-api`;
 
       // Build initiate request data - FIELD ORDER MATTERS for checksum

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4";
 
+import { escapeHtml } from "../_shared/authGuard.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -104,8 +105,8 @@ Deno.serve(async (req) => {
         taskRows += `
           <tr>
             <td style="padding:10px 12px 10px 0;font-size:14px;color:#111827;border-bottom:1px solid #f3f4f6;vertical-align:top;">
-              <strong>${task.title}</strong>
-              ${task.description ? `<br/><span style="font-size:12px;color:#6b7280;">${task.description}</span>` : ""}
+              <strong>${escapeHtml(task.title)}</strong>
+              ${task.description ? `<br/><span style="font-size:12px;color:#6b7280;">${escapeHtml(task.description)}</span>` : ""}
             </td>
             <td style="padding:10px 8px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;vertical-align:top;white-space:nowrap;">
               ${priorityEmoji} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
@@ -144,7 +145,7 @@ Deno.serve(async (req) => {
       <p style="margin:6px 0 0;font-size:13px;color:#9ca3af;">${today}</p>
     </div>
     <div style="background:#fff;padding:24px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
-      <p style="font-size:15px;color:#374151;margin:0 0 4px;">Hi ${firstName},</p>
+      <p style="font-size:15px;color:#374151;margin:0 0 4px;">Hi ${escapeHtml(firstName)},</p>
       <p style="font-size:14px;color:#6b7280;margin:0 0 20px;">
         Here's your current task summary — <strong>${taskCount} task${taskCount !== 1 ? "s" : ""}</strong> assigned to you.
       </p>

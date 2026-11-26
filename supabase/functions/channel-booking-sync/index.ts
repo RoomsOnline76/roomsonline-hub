@@ -9,6 +9,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { syncBookingToChannel, type ChannelBookingChange } from '../_shared/channelBookingSync.ts';
 
+import { requireBookingAccess, authErrorResponse } from '../_shared/authGuard.ts';
 const CHANGES: ChannelBookingChange[] = [
   'created',
   'moved',
@@ -40,6 +41,13 @@ Deno.serve(async (req) => {
     const bookingId = typeof body?.booking_id === 'string' ? body.booking_id.trim() : '';
     if (!bookingId) {
       return json({ success: false, error: { code: 'INVALID_REQUEST', message: 'booking_id is required' } }, 400);
+    }
+    try {
+      await requireBookingAccess(req, bookingId);
+    } catch (authErr) {
+      const denied = authErrorResponse(authErr, corsHeaders);
+      if (denied) return denied;
+      throw authErr;
     }
 
     const rawChange = String(body?.change ?? 'unknown') as ChannelBookingChange;

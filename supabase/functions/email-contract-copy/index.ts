@@ -1,5 +1,7 @@
 import { Resend } from "npm:resend@2";
 
+import { escapeHtml } from "../_shared/authGuard.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 // Lazy client: constructed on first use so cold boots don't pay for it.
 let _resend: Resend | null = null;
 const getResend = () => (_resend ??= new Resend(Deno.env.get("RESEND_API_KEY")));
@@ -23,6 +25,7 @@ interface PropertyContractDetails {
 
 interface EmailContractRequest {
   contract_id: string;
+  signing_token: string;
   email: string;
   property_name: string;
   signing_url: string;
@@ -38,35 +41,35 @@ function generatePropertyDetailsHTML(property?: PropertyContractDetails): string
     <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; width: 40%; color: #2d3748;">Registered Name</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.registeredName || property.name || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.registeredName || property.name || 'N/A')}</td>
       </tr>
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Registration Number</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.registrationNumber || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.registrationNumber || 'N/A')}</td>
       </tr>
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">VAT Number</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.vatNumber || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.vatNumber || 'N/A')}</td>
       </tr>
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Telephone</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.telephone || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.telephone || 'N/A')}</td>
       </tr>
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">E-mail</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.email || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.email || 'N/A')}</td>
       </tr>
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Physical Address</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.physicalAddress || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.physicalAddress || 'N/A')}</td>
       </tr>
       <tr style="border-bottom: 1px solid #e2e8f0;">
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Postal Address</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.postalAddress || property.physicalAddress || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.postalAddress || property.physicalAddress || 'N/A')}</td>
       </tr>
       <tr>
         <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Key Representative</td>
-        <td style="padding: 8px 0; color: #4a5568;">${property.keyRepresentative || 'N/A'}</td>
+        <td style="padding: 8px 0; color: #4a5568;">${escapeHtml(property.keyRepresentative || 'N/A')}</td>
       </tr>
     </table>
   `;
@@ -78,14 +81,41 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { contract_id, email, property_name, signing_url, property_details }: EmailContractRequest = await req.json();
+    const { contract_id, signing_token, email, property_details }: EmailContractRequest = await req.json();
 
-    if (!email || !property_name) {
+    if (!email || !contract_id || !signing_token || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email))) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+
+    // Only the holder of a live signing link may email a review copy of that contract.
+    // The property name and signing link come from our records, never the request.
+    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    let resolvedName: string | null = null;
+    for (const table of ["owner_contracts", "property_contracts"]) {
+      const { data } = await sb.from(table).select("*").eq("id", contract_id).eq("signing_token", signing_token).maybeSingle();
+      if (!data) continue;
+      const row = data as Record<string, unknown>;
+      const expires = row.token_expires_at ? new Date(String(row.token_expires_at)).getTime() : null;
+      if (row.status === "signed" || row.status === "revoked" || (expires && expires < Date.now())) break;
+      let name = (row.property_name as string) || null;
+      if (!name && row.property_id) {
+        const { data: p } = await sb.from("properties").select("name").eq("id", row.property_id as string).maybeSingle();
+        name = (p?.name as string) || null;
+      }
+      resolvedName = name || (row.owner_name as string) || "your property";
+      break;
+    }
+    if (!resolvedName) {
+      return new Response(
+        JSON.stringify({ error: "This signing link is not valid" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    const property_name = escapeHtml(resolvedName);
+    const signing_url = `https://sleepinafrica.roomsonline.co.za/contract/sign/${encodeURIComponent(signing_token)}`;
 
     const logoUrl = "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png";
     const propertyDetailsHTML = generatePropertyDetailsHTML(property_details);

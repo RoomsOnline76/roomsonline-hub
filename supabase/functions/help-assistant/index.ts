@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
+import { getCaller, isPlatformAdmin, canAccessProperty, serviceClient } from "../_shared/authGuard.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -497,13 +498,56 @@ async function executeAction(
   }
 }
 
+/** Only plain user/assistant turns from the caller; instructions stay server-side. */
+function sanitizeChatMessages(raw: unknown): Array<{ role: "user" | "assistant"; content: string }> {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((m) => m && typeof m === "object" && ((m as { role?: unknown }).role === "user" || (m as { role?: unknown }).role === "assistant"))
+    .map((m) => ({ role: (m as { role: "user" | "assistant" }).role, content: String((m as { content?: unknown }).content ?? "").slice(0, 4000) }))
+    .slice(-30);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages, userRole, pmsContext, onboardingContext, actionRequest } = await req.json();
+    const rawBody = await req.json();
+    const { pmsContext, onboardingContext, actionRequest } = rawBody;
+    const messages = sanitizeChatMessages(rawBody.messages);
+
+    // Who is asking decides what the assistant may see: property data needs a
+    // signed-in user who manages every property in scope; the help role comes
+    // from the caller's own roles, never from the request.
+    const caller = await getCaller(req);
+    let userRole: string | null = null;
+    if (caller?.kind === "user") {
+      if (await isPlatformAdmin(caller.userId)) {
+        userRole = "admin";
+      } else {
+        const requested = typeof rawBody.userRole === "string" ? rawBody.userRole : null;
+        const { data: roleRows } = await serviceClient().from("user_roles").select("role").eq("user_id", caller.userId);
+        const roles = (roleRows || []).map((r: { role: string }) => r.role);
+        userRole = requested && roles.includes(requested) ? requested : (roles[0] ?? null);
+      }
+    } else if (caller) {
+      userRole = "admin";
+    }
+    if (pmsContext && (pmsContext.propertyId || pmsContext.portfolioPropertyIds)) {
+      if (!caller) {
+        return new Response(JSON.stringify({ error: "Sign in required" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (caller.kind === "user") {
+        const scope = [pmsContext.propertyId, ...(Array.isArray(pmsContext.portfolioPropertyIds) ? pmsContext.portfolioPropertyIds : [])]
+          .filter((v: unknown): v is string => typeof v === "string" && v.length > 0);
+        for (const id of new Set(scope)) {
+          if (!(await canAccessProperty(caller.userId, id))) {
+            return new Response(JSON.stringify({ error: "Not allowed" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+        }
+      }
+    }
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -832,8 +876,10 @@ Deno.serve(async (req) => {
         .order("section")
         .limit(50);
 
-      if (userRole && !["admin", "dev"].includes(userRole)) {
-        query = query.or(`role_target.cs.{${userRole}},role_target.cs.{all}`);
+      if (userRole !== "admin") {
+        query = userRole && /^[a-z_]+$/.test(userRole)
+          ? query.or(`role_target.cs.{${userRole}},role_target.cs.{all}`)
+          : query.contains("role_target", ["all"]);
       }
 
       const { data: articles } = await query;

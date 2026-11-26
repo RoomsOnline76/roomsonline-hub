@@ -52,7 +52,7 @@ export default function JourneyConfirmation() {
     if (!itineraryId) return;
     setIsGeneratingPdf(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-itinerary-pdf", { body: { itinerary_id: itineraryId } });
+      const { data, error } = await supabase.functions.invoke("generate-itinerary-pdf", { body: { itinerary_id: itineraryId, session_id: sessionStorage.getItem("rol_session_id") } });
       if (error) throw error;
       if (!data?.html) throw new Error("No brochure content received");
 
