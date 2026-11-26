@@ -657,7 +657,7 @@ function toFiniteNumber(value: unknown): number | null {
  * when nothing is authored, and never exceeds the unit's maximum.
  */
 /**
- * Name published for the listing. Airbnb / VRBO refuse names outside 8–50 characters, so an
+ * Name published for the listing. Airbnb / VRBO refuse names outside 3–50 characters, so an
  * authored `amenities.channel_listing_name` wins for the property-level name only — unit
  * names are untouched. A blank or unusable override falls back to the property name.
  */
@@ -1964,7 +1964,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   rooms.push(...compositionRoomBlocks(singleComp, singleAmenities));
 
   return {
-    // Some sales channels only accept an 8–50 character listing name, so the operator can
+    // Some sales channels only accept a 3–50 character listing name, so the operator can
     // author a short channel listing name. The property's own name stays as captured.
     name: resolvePublishedListingName(property),
     // <PropertyTypeID> = bedroom layout; listing kind travels as <ObjectTypeID>.

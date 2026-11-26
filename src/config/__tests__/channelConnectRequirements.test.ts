@@ -38,12 +38,17 @@ const subject = (over: Partial<RequirementSubject> = {}): RequirementSubject => 
 });
 
 describe("sales-channel connect grading", () => {
-  it("names the exact shortfall for a listing name outside 8–50 characters", () => {
-    const grade = gradeConnectEligibility("airbnb", subject({ name: "Sea" }));
-    const miss = grade.failing.find((f) => f.key === "name_length_8_50");
+  it("names the exact shortfall for a listing name outside 3–50 characters", () => {
+    const grade = gradeConnectEligibility("airbnb", subject({ name: "Se" }));
+    const miss = grade.failing.find((f) => f.key === "name_length_3_50");
     expect(miss).toBeDefined();
-    expect(miss?.shortfall).toContain("3 characters");
+    expect(miss?.shortfall).toContain("2 characters");
     expect(miss?.focusKey).toBe("channel_listing_name");
+  });
+
+  it("accepts a listing name at the 3-character minimum", () => {
+    const grade = gradeConnectEligibility("airbnb", subject({ name: "Sea" }));
+    expect(grade.failing.some((f) => f.key === "name_length_3_50")).toBe(false);
   });
 
   it("accepts a short channel listing name instead of renaming the property", () => {
@@ -52,12 +57,12 @@ describe("sales-channel connect grading", () => {
       "airbnb",
       subject({ name: long, amenities: { room_types: [unit()], channel_listing_name: "Beach House" } }),
     );
-    expect(ok.failing.some((f) => f.key === "name_length_8_50")).toBe(false);
+    expect(ok.failing.some((f) => f.key === "name_length_3_50")).toBe(false);
   });
 
   it("does not apply the name-length overlay to Booking.com", () => {
     const grade = gradeConnectEligibility("booking", subject({ name: "A".repeat(80) }));
-    expect(grade.failing.some((f) => f.key === "name_length_8_50")).toBe(false);
+    expect(grade.failing.some((f) => f.key === "name_length_3_50")).toBe(false);
   });
 
   it("measures beds against maximum guests per unit and names the unit", () => {

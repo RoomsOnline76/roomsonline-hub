@@ -340,10 +340,10 @@ const describeFailingUnits = (
 
 const OVERLAY_ROWS: ConnectRequirement[] = [
   {
-    key: "name_length_8_50",
+    key: "name_length_3_50",
     channels: ["airbnb", "vrbo"],
     title: "Listing name length",
-    requirement: "Listing name for this channel must be between 8 and 50 characters.",
+    requirement: "Listing name for this channel must be between 3 and 50 characters.",
     section: "general",
     focusKey: registryRow("channel_listing_name") ? "channel_listing_name" : "name",
     unitOwned: false,
@@ -352,7 +352,7 @@ const OVERLAY_ROWS: ConnectRequirement[] = [
       isChannelListingNameLengthOk(str(amenityValue(s, "channel_listing_name"))),
     describeShortfall: (s) => {
       const name = str(s.name);
-      return `“${name}” is ${name.length} characters — this channel allows 8–50.`;
+      return `“${name}” is ${name.length} characters — this channel allows 3–50.`;
     },
   },
   {

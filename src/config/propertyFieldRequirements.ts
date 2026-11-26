@@ -399,17 +399,17 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
   },
   {
     /**
-     * Short-name channels (Airbnb, VRBO) refuse a listing name outside 8–50 characters.
+     * Short-name channels (Airbnb, VRBO) refuse a listing name outside 3–50 characters.
      * A long marketing name stays legal on Booking.com, so instead of forcing the owner to
      * rename the property we ask for a separate channel listing name — and only while the
      * property name itself is outside the window.
      */
     key: "channel_listing_name",
-    label: "Channel listing name (8–50 characters)",
+    label: "Channel listing name (3–50 characters)",
     tier: "mandatory",
     section: "general",
     target: ['[data-field="amenities.channel_listing_name"]', "#channel_listing_name", "#name"],
-    hint: "Airbnb and VRBO only accept 8–50 characters. Give the listing a short name here; the longer marketing name stays on the property.",
+    hint: "Airbnb and VRBO only accept 3–50 characters. Give the listing a short name here; the longer marketing name stays on the property.",
     appliesTo: (s) => filled(s.name) && !isChannelListingNameLengthOk(str(s.name)),
     isSatisfied: (s) => isChannelListingNameLengthOk(str(amenity(s, "channel_listing_name"))),
   },
@@ -1080,8 +1080,8 @@ export const REQUIREMENT_SHORTFALLS: Record<
     const short = str(amenity(s, "channel_listing_name"));
     const name = str(s.name);
     return short
-      ? `Channel listing name is ${short.length} characters — Airbnb / VRBO allow 8–50.`
-      : `“${name}” is ${name.length} characters — this channel allows 8–50. Add a short channel listing name.`;
+      ? `Channel listing name is ${short.length} characters — Airbnb / VRBO allow 3–50.`
+      : `“${name}” is ${name.length} characters — this channel allows 3–50. Add a short channel listing name.`;
   },
   room_beds_match_max: (s) =>
     failingUnits(
@@ -1242,7 +1242,7 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   contract_signed: ["owner_email"],
   // Sales-channel connect overlays (see src/config/channelConnectRequirements.ts).
   beds_match_max_guests: ["room_beds_match_max", "room_beds"],
-  name_length_8_50: ["channel_listing_name", "name", "name_hygiene"],
+  name_length_3_50: ["channel_listing_name", "name", "name_hygiene"],
   // The publish/listing-id control is owned by the onboarding workspace itself.
   listing_published: [],
 };

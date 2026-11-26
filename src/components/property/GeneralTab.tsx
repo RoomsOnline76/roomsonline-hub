@@ -224,7 +224,7 @@ export function GeneralTab(props: GeneralTabProps) {
   }, [channelTypes.options, formData.property_type]);
 
   const nameFeedback = useMemo(() => checkChannelName(formData.name), [formData.name]);
-  /** Short name some sales channels insist on (8–50 characters) — the property name stays as authored. */
+  /** Short name some sales channels insist on (3–50 characters) — the property name stays as authored. */
   const channelListingName = String(formData.amenities?.channel_listing_name ?? "");
   const channelListingNameFeedback = useMemo(
     () => checkChannelListingNameLength(channelListingName),
@@ -579,7 +579,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   <span className="text-[10px] text-muted-foreground">{String(formData.name ?? "").trim().length} characters</span>
                 </div>
 
-                {/* Only asked for when the property name itself falls outside the 8–50 window. */}
+                {/* Only asked for when the property name itself falls outside the 3–50 window. */}
                 {!isChannelListingNameLengthOk(formData.name) && String(formData.name ?? "").trim().length > 0 && (
                   <div className="flex flex-col gap-1" data-field="amenities.channel_listing_name">
                     <Label htmlFor="channel_listing_name" className="text-xs">Channel listing name</Label>

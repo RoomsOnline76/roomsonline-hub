@@ -154,10 +154,10 @@ export function checkChannelMaxGuests(value: number | string | null | undefined)
  * Sales-channel listing-name length.
  *
  * Airbnb (and the VRBO/HomeAway family) refuse a listing whose name falls outside
- * 8–50 characters. Booking.com happily takes the longer marketing name, so this is a
+ * 3–50 characters. Booking.com happily takes the longer marketing name, so this is a
  * per-channel overlay on top of `checkChannelName` hygiene — never a go-live blocker.
  */
-export const CHANNEL_LISTING_NAME_MIN = 8;
+export const CHANNEL_LISTING_NAME_MIN = 3;
 export const CHANNEL_LISTING_NAME_MAX = 50;
 
 export function checkChannelListingNameLength(
@@ -182,7 +182,7 @@ export function checkChannelListingNameLength(
   return ok(requirement);
 }
 
-/** True when the name is inside the 8–50 window every short-name channel enforces. */
+/** True when the name is inside the 3–50 window every short-name channel enforces. */
 export const isChannelListingNameLengthOk = (value: string | null | undefined): boolean => {
   const n = String(value ?? "").trim().length;
   return n >= CHANNEL_LISTING_NAME_MIN && n <= CHANNEL_LISTING_NAME_MAX;

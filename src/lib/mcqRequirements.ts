@@ -49,7 +49,7 @@ const RULES: McqRule[] = [
     match: /(name|title).*(8|50|length|too long|too short)|50 charac/i,
     title: "Listing name length",
     requirement:
-      "The listing name for this channel must be between 8 and 50 characters. Keep the longer marketing name on the property and add a short channel listing name.",
+      "The listing name for this channel must be between 3 and 50 characters. Keep the longer marketing name on the property and add a short channel listing name.",
     section: "general",
     focusKey: "channel_listing_name",
   },
